@@ -90,3 +90,9 @@ function generate_random_id(n::Integer; seed::Union{Int, Nothing} = 12345)
 
 	return out
 end;
+
+# Get environment variables into the global environment
+aed_data_path = ENV["aed_env"];
+ems_data_path = ENV["ems_data_env"];
+iowa_county_district_path = ENV["iowa_county_district_env"];
+output_folder = ENV["output_directory"];
