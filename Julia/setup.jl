@@ -66,32 +66,9 @@ end;
 DotEnv.config();
 DotEnv.load!()
 
-# _____________________________________________________________________________
-# generate_random_id(): creates random identifiers analogous to the R function
-# _____________________________________________________________________________
-
-function generate_random_id(n::Integer; seed::Union{Int, Nothing} = 12345)
-	if seed isa Int
-		Random.seed!(seed)
-	elseif isnothing(seed)
-		@info "Random seed was not set. Results will not be reproducible."
-	end
-
-	# Character pool (upper + lower case letters)
-	chars = [collect('A':'Z'); collect('a':'z'); collect('A':'Z')]
-
-	out = Vector{String}(undef, n)
-
-	for i in 1:n
-		letters_part = String(rand(chars, 10))
-		numbers_part = rand(1_000_000_000:9_999_999_999)
-		out[i] = string(letters_part, "-", numbers_part)
-	end
-
-	return out
-end;
-
+###_____________________________________________________________________________
 # Get environment variables into the global environment
+###_____________________________________________________________________________
 aed_data_path = ENV["aed_env"];
 ems_data_path = ENV["ems_data_env"];
 iowa_county_district_path = ENV["iowa_county_district_env"];
