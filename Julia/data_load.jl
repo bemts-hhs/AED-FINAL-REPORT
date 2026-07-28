@@ -136,103 +136,119 @@ ems_shocks = select(
 )
 
 # read in location data for regions / urbanicity
-location <- readxl::read_excel(
-  iowa_county_district_path
-)
+location = DataFrame(
+  XLSX.readtable(iowa_county_district_path, "IA Counties, Regions")
+  )
 
 # deal with multiple procedures to reduce the rows to 1 row = 1 run, no duplication
-ems_aed_runs <- ems_aed |>
+
+# date manipulation and relocate new features
+ems_aed_runs_dates = @chain ems_aed begin
   @mutate(
-    incident_day = lubridate::wday(incident_date, label = t, abbr = f),
-    weekday_weekend = traumar::weekend(incident_date),
-    season = traumar::season(incident_date),
-    .after = incident_date_time
-  ) |>
-  @group_by(fact_incident_pk) |>
-  @mutate(@across(
-    c(
-      incident_complaint_reported_by_dispatch_dispatch_reason_e_dispatch_01,
-      situation_provider_primary_impression_description_only_e_situation_11,
-      procedure_performed_description_e_procedures_03,
-      procedure_performed_date_time_e_procedures_01,
-      medication_given_or_administered_description_e_medications_03,
-      medication_response_e_medications_07
-    ),
-    ~ stringr::str_c(unique(.), collapse = ", ")
-  )) |>
+    incident_day = TidierDates.dayname(incident_date),
+    incident_month = TidierDates.monthname(incident_date)
+  )
   @mutate(
-    procedure_number_of_attempts_e_procedures_05 = stringr::str_c(
-      procedure_number_of_attempts_e_procedures_05,
-      collapse = ", "
-    )
-  ) |>
-  @mutate(
-    witnessed = !grepl(
-      pattern = "not",
-      x = cardiac_arrest_witnessed_by_list_e_arrest_04,
-      ignore.case = t
-    ),
-    .after = cardiac_arrest_witnessed_by_list_e_arrest_04
-  ) |>
-  naniar::replace_with_na(
-    replace = list(
-      cardiac_arrest_cpr_provided_prior_to_ems_arrival_3_4_e_arrest_05_3_5_it_arrest_105 = c(
-        "not recorded",
-        "not applicable"
+    weekday_weekend = incident_day ∈ ["Saturday" "Sunday"],
+    season = ifelse(
+      incident_month ∈ ["December" "January" "February"],
+      "Winter",
+      ifelse(
+        incident_month ∈ ["March" "April" "May"],
+        "Spring",
+        ifelse(
+          incident_month ∈ ["June" "July" "August"],
+          "Summer",
+          "Fall"
+        )
       )
     )
-  ) |>
+  )
+  @relocate(incident_day, incident_month, weekday_weekend, season, after=incident_date
+)
+end;
+
+# temporary dataframe to conduct some manipulations on one-to-many features
+ems_aed_runs_temp_unique = unique(ems_aed_runs_dates)
+
+# split - group the temp table
+ems_aed_runs_temp_group = groupby(ems_aed_runs_temp_unique, :fact_incident_pk)
+
+# apply string concatenation and combine the temp table
+ems_aed_runs_temp_concat = unique(
+  combine(
+  ems_aed_runs_temp_group, 
+  :incident_complaint_reported_by_dispatch_dispatch_reason_e_dispatch_01 =>
+        (x -> join(x, ", ")) => :incident_complaint_reported_by_dispatch_dispatch_reason_e_dispatch_01,
+      :procedure_performed_description_e_procedures_03 =>
+        (x -> join(x, ", ")) => :procedure_performed_description_e_procedures_03,
+      :procedure_performed_date_time_e_procedures_01 =>
+        (x -> join(x, ", ")) => :procedure_performed_date_time_e_procedures_01,
+        :procedure_number_of_attempts_e_procedures_05 => (x -> join(x, ", ") => :procedure_number_of_attempts_e_procedures_05),
+      :medication_given_or_administered_description_e_medications_03 =>
+        (x -> join(x, ", ")) => :medication_given_or_administered_description_e_medications_03,
+      :medication_response_e_medications_07 =>
+        (x -> join(x, ", ")) => :medication_response_e_medications_07
+  )
+);
+
+# get the distinct ems_aed table
+ems_aed_unique = @chain ems_aed_runs_dates begin @distinct fact_incident_pk end;
+
+# join now one-to-one EMS data to fact table
+ems_aed_runs = @chain ems_aed_unique begin
+  @ungroup
+  @select( 
+  -(incident_complaint_reported_by_dispatch_dispatch_reason_e_dispatch_01, procedure_performed_description_e_procedures_03, procedure_performed_date_time_e_procedures_01, procedure_number_of_attempts_e_procedures_05, 
+  medication_given_or_administered_description_e_medications_03,
+  medication_response_e_medications_07
+  )
+)
+  @left_join(ems_aed_runs_temp_concat, fact_incident_pk = fact_incident_pk)
+  @left_join(ems_shocks, fact_incident_pk = fact_incident_pk)
+  @rename(procedure_number_of_attempts_e_procedures_05 = procedure_number_of_attempts_e_procedures_05_function)
+  @relocate(shocks, after = procedure_number_of_attempts_e_procedures_05)
   @mutate(
-    cardiac_arrest_cpr_provided_prior_to_ems_arrival_3_4_e_arrest_05_3_5_it_arrest_105 = @if_else(
-      is.na(
-        cardiac_arrest_cpr_provided_prior_to_ems_arrival_3_4_e_arrest_05_3_5_it_arrest_105
-      ) &
-        (!is.na(
-          cardiac_arrest_who_initiated_cpr_3_4_it_arrest_008_3_5_e_arrest_20
-        ) &
-          !cardiac_arrest_who_initiated_cpr_3_4_it_arrest_008_3_5_e_arrest_20 %in%
-            c("responding ems personnel", "first responder (ems)")) |
-        !is.na(
-          cardiac_arrest_who_provided_cpr_prior_to_ems_arrival_list_3_4_e_arrest_06_3_5_it_arrest_106
-        ),
-      "yes",
-      cardiac_arrest_cpr_provided_prior_to_ems_arrival_3_4_e_arrest_05_3_5_it_arrest_105
-    ),
-    cardiac_arrest_cpr_provided_prior_to_ems_arrival_3_4_e_arrest_05_3_5_it_arrest_105 = tidyr::replace_na(
-      cardiac_arrest_cpr_provided_prior_to_ems_arrival_3_4_e_arrest_05_3_5_it_arrest_105,
-      replace = "no"
-    ),
-    .after = cardiac_arrest_cpr_provided_prior_to_ems_arrival_3_4_e_arrest_05_3_5_it_arrest_105
-  ) |>
-  @ungroup() |>
-  @full_join(ems_shocks, by = @join_by(fact_incident_pk)) |>
-  @relocate(
-    shocks,
-    .after = procedure_number_of_attempts_e_procedures_05
-  ) |>
-  @distinct(fact_incident_pk, .keep_all = t) |>
-  tidyr::replace_na(list(situation_possible_overdose = false)) |>
+    witnessed = .!occursin.(r"not"i, coalesce.(cardiac_arrest_witnessed_by_list_e_arrest_04, "")),
+    cardiac_arrest_cpr_provided_prior_to_ems_arrival_3_4_e_arrest_05_3_5_it_arrest_105 = coalesce.(cardiac_arrest_cpr_provided_prior_to_ems_arrival_3_4_e_arrest_05_3_5_it_arrest_105, "Not Recorded")
+  )
   @mutate(
-    @across(
-      c(
-        incident_dispatch_notified_to_unit_arrived_at_patient_in_minutes,
-        incident_dispatch_notified_to_unit_arrived_on_scene_in_minutes
-      ),
-      ~ traumar::impute(., focus = "missing", method = "median")
-    ),
-    @across(
-      c(
-        incident_dispatch_notified_to_unit_arrived_at_patient_in_minutes,
-        incident_dispatch_notified_to_unit_arrived_on_scene_in_minutes
-      ),
-      ~ traumar::impute(
-        .,
-        focus = "skew",
-        method = "winsorize",
-        percentile = 0.95
-      )
+    cardiac_arrest_cpr_provided_prior_to_ems_arrival_3_4_e_arrest_05_3_5_it_arrest_105 = ifelse.(
+      ismissing.(cardiac_arrest_cpr_provided_prior_to_ems_arrival_3_4_e_arrest_05_3_5_it_arrest_105) .& 
+      (
+        .!ismissing.(cardiac_arrest_who_initiated_cpr_3_4_it_arrest_008_3_5_e_arrest_20) 
+        .& 
+        .!occursin.(r"responding ems personnel|first responder \(ems\)"i, coalesce.(cardiac_arrest_who_initiated_cpr_3_4_it_arrest_008_3_5_e_arrest_20, ""))
+        ) .| 
+        .!ismissing.(cardiac_arrest_who_provided_cpr_prior_to_ems_arrival_list_3_4_e_arrest_06_3_5_it_arrest_106), "yes", cardiac_arrest_cpr_provided_prior_to_ems_arrival_3_4_e_arrest_05_3_5_it_arrest_105
     )
-  ) |>
+  )
+  @mutate(
+    cardiac_arrest_cpr_provided_prior_to_ems_arrival_3_4_e_arrest_05_3_5_it_arrest_105 = coalesce.(cardiac_arrest_cpr_provided_prior_to_ems_arrival_3_4_e_arrest_05_3_5_it_arrest_105, "no"
+    ),
+    situation_possible_overdose = coalesce.(situation_possible_overdose, false),
+    incident_dispatch_notified_to_unit_arrived_at_patient_in_minutes = 
+    coalesce.(
+      incident_dispatch_notified_to_unit_arrived_at_patient_in_minutes, 
+      median(
+        skipmissing(incident_dispatch_notified_to_unit_arrived_at_patient_in_minutes)
+      )
+    ),
+    incident_dispatch_notified_to_unit_arrived_on_scene_in_minutes = 
+    coalesce.(
+      incident_dispatch_notified_to_unit_arrived_on_scene_in_minutes,
+      median(
+        skipmissing(
+          incident_dispatch_notified_to_unit_arrived_on_scene_in_minutes
+        )
+      )
+    ),
+    cardiac_arrest_patient_outcome_at_end_of_ems_event_e_arrest_18 = ifelse.(
+      ismissing.(cardiac_arrest_patient_outcome_at_end_of_ems_event_e_arrest_18) .| occursin.(r"not applicable|not recorded"i, coalesce.(cardiac_arrest_patient_outcome_at_end_of_ems_event_e_arrest_18, "")) .& occursin.(r"dead"i, coalesce.(disposition_incident_patient_disposition_3_4_e_disposition_12_3_5_it_disposition_112, "")), "Expired in the Field", cardiac_arrest_patient_outcome_at_end_of_ems_event_e_arrest_18
+    )
+  )
+end;
+
   @mutate(
     cardiac_arrest_patient_outcome_at_end_of_ems_event_e_arrest_18 = @if_else(
       is.na(
@@ -248,7 +264,7 @@ ems_aed_runs <- ems_aed |>
       "expired in the field",
       cardiac_arrest_patient_outcome_at_end_of_ems_event_e_arrest_18
     )
-  ) |>
+  )
   @mutate(
     rosc_ed = @case_when(
       grepl(
@@ -307,9 +323,9 @@ ems_aed_runs <- ems_aed |>
       true ~ true
     ),
     .after = cardiac_arrest_patient_outcome_at_end_of_ems_event_e_arrest_18
-  ) |>
+  )
   @left_join(
     location,
     by = c("scene_incident_county_name_e_scene_21" = "county")
   )
-
+end

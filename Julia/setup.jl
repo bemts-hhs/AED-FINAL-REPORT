@@ -21,7 +21,8 @@ using Pkg
 #     "DataFrames", 
 #     "Quarto", 
 #     "PrettyTables",
-#     "Random"
+#     "Random",
+#	  "Impute"
 #     ]
 # );
 
@@ -37,6 +38,7 @@ using DataFrames
 using Quarto
 using PrettyTables
 using Random
+using Impute
 
 # Create .env file if it does not exist
 if !isfile(".env")
