@@ -103,9 +103,9 @@ If `true`, the function applies `TidierData`'s `@clean_names` macro to the
 Optionally run the `@clean_names` macro from `TidierData` to clean up column names once the data are coerced to rectangular format.
 
 
-types_spec::Union{Nothing, Vector{DataType}} = nothing  
+type_spec::Union{Nothing, Vector{DataType}} = nothing  
 
-Optional vector specifying the desired data type for each column in the resulting DataFrame. If supplied, the length of `types_spec` must match the number of columns. Each column will be converted using `convert` and `passmissing`. If `nothing`, no type coercion is performed.
+Optional vector specifying the desired data type for each column in the resulting DataFrame. If supplied, the length of `type_spec` must match the number of columns. Each column will be converted using `convert` and `passmissing`. If `nothing`, no type coercion is performed.
 
 Returns
 -------
@@ -131,10 +131,10 @@ Examples
 		"C:/data/aed.xlsx",
 		"VALID DATA ENTRY",
 		"A1:AL2399";
-		cleanup=false
+		cleanup=false, type_spec=false
 	)
 """
-function xlsx_cell_range_to_df(path::String, sheet::String, range::String; clean_up::Bool = true, type_spec::Union{Nothing, Vector{DataType}} = nothing)
+function xlsx_cell_range_to_df(path::String, sheet::String, range::String; clean_up::Bool=true, type_spec::Union{Nothing, Vector{DataType}}=nothing)
 
 	# Read the cell range from the Excel sheet. XLSX.readdata returns a
 	# Matrix{Any} whose first dimension is rows and second dimension is
@@ -155,12 +155,12 @@ function xlsx_cell_range_to_df(path::String, sheet::String, range::String; clean
 	out = DataFrame(data, column_names)
 
 
-	# If types_spec is provided, apply column-wise type conversion.
-	if types_spec !== nothing
-		@assert length(types_spec) == ncol(out) "types_spec length mismatch."
+	# If type_spec is provided, apply column-wise type conversion.
+	if !isnothing(type_spec)
+		@assert length(type_spec) == ncol(out) "type_spec length mismatch."
 
 		# Loop over each column and convert using the specified type.
-		for (i, T) in enumerate(types_spec)
+		for (i, T) in enumerate(type_spec)
 
 			# Apply conversion with passmissing so that missing values are
 			# preserved rather than erroring.

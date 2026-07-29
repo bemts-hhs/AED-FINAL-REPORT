@@ -938,8 +938,7 @@ county_extension_pattern <-
 # indicating that there are many to many relationships among x and y
 # this means that we found another city that is assigned to more than 1 county
 # within geonames and those are mostly errors.
-# Fix this by adding to the list of filtered items for Iowa_Data_Final in the same
-# format that the code is written in
+# Fix this by adding to the list of filtered items for Iowa_Data_Final in the sameformat that the code is written in
 ###_____________________________________________________________________________
 
 aed_final <- aed_clean |>

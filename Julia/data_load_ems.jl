@@ -121,17 +121,6 @@ ems_shocks = select(
 	:shocks,
 )
 
-# read in location data for regions / urbanicity
-location = DataFrame(
-	XLSX.readtable(iowa_county_district_path, "IA Counties, Regions"),
-)
-
-# improve location column names
-location = @chain location begin
-  @clean_names
-  @mutate county_fips = string.(county_fips)
-end;
-
 # deal with multiple procedures to reduce the rows to 1 row = 1 run, no duplication
 
 # date manipulation and relocate new features
