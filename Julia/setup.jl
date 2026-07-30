@@ -21,7 +21,8 @@ Pkg.add(
     "DotEnv", 
     "CSV", 
     "XLSX", 
-    "DataFrames", 
+    "DataFrames",
+    "DataFramesMeta",
     "Quarto", 
     "PrettyTables",
     "Random",
@@ -42,6 +43,7 @@ using DotEnv
 using CSV
 using XLSX
 using DataFrames
+using DataFramesMeta
 using Quarto
 using PrettyTables
 using Random
@@ -247,7 +249,7 @@ geonames does not use the same codes as Census Bureau
 =#
 
 # final manipulations of the Iowa data to join to the AED data
-Iowa_Data_Final = @chain geo_df_iowa begin
+iowa_data_final = @chain geo_df_iowa begin
     @left_join(
         select(ia_counties, :county_code, :name_county), admin2_code = county_code
     )
@@ -257,4 +259,106 @@ Iowa_Data_Final = @chain geo_df_iowa begin
     @left_join(
         location, name_county = county
     )
+    @mutate(name = coalesce.(name, ""),
+            name_county = coalesce.(name_county, "")
+    )
+    @mutate(
+        name_name_county = string.(name, " ", name_county)
+    )
+    @filter name_name_county .!= "CENTERVILLE Boone"
+    @filter name_name_county .!= "PLEASANT HILL Van Buren"
+    @filter name_name_county .!= "HOLY CROSS Delaware"
+    @filter name_name_county .!= "FOREST CITY Howard"
+    @filter name_name_county .!= "GENEVA Benton"
+    @filter name_name_county .!= "WESTFIELD Poweshiek"
+    @filter name_name_county .!= "TROY Lucas"
+    @filter name_name_county .!= "WASHINGTON Woodbury"
+    @filter name_name_county .!= "WEBSTER Madison"
+    @filter name_name_county .!= "RIVERSIDE Woodbury"
+    @filter name_name_county .!= "WASHINGTON Franklin"
+    @filter name_name_county .!= "VAN Marshall"
+    @select -name_name_county
+    @rename district = region_preparedness
+    @relocate(
+        district, after = name_county
+    )
 end
+
+#= 
+geonames is missing some of the cities / towns in Iowa, this is a product of the analyses below and may need to be revised periodically
+=#
+missing_locations = DataFrame(
+  geonameid = generate_random_id(7),
+  # Generating random geoname IDs
+  name = [
+    "TERRILL",
+    "LEMARS",
+    "FREDRICKSBURG",
+    "MOLVILLE",
+    "CALLENDAR",
+    "SYDNEY",
+    "DESOTO"
+  ],
+  name_county = [
+    "Dickinson",
+    "Plymouth",
+    "Chickasaw",
+    "Woodbury",
+    "Webster",
+    "Fremont",
+    "Dallas"
+  ],
+  latitude = [
+    43.305473,
+    42.7942,
+    42.964586,
+    42.488210,
+    42.362592,
+    40.7592,
+    41.5316
+  ],
+  longitude = [
+    -94.971433,
+    -96.1656,
+    -92.198465,
+    -96.069997,
+    -94.293268,
+    -95.6668,
+    -94.0078
+  ],
+  population = fill(missing, 7),
+  elevation = fill(missing, 7),
+  dem = fill(missing, 7),
+  timezone = fill(missing, 7),
+  modification_date = fill(missing, 7),
+  district = c("7", "3", "2", "3", "7", "4", "1A"),
+  # Adding region information
+  asciiname = fill(missing, 7),
+  alternatenames = fill(missing, 7),
+  feature_class = fill(missing, 7),
+  feature_code = fill(missing, 7),
+  country_code = fill(missing, 7),
+  cc2 = fill(missing, 7),
+  admin1_code = fill(missing, 7),
+  admin2_code = c("059", "149", "037", "193", "187", "071", "049"),
+  # Adding admin2_code
+  admin3_code = fill(missing, 7),
+  admin4_code = fill(missing, 7)
+)
+
+# helper vector with iowa_data_final column names
+iowa_data_final_names = names(iowa_data_final);
+
+# finish by joining needed features to union this with the larger dataset
+missing_location_join = @chain missing_locations begin
+  @left_join(
+    location,
+    name_county = county
+  ) 
+end
+
+# select the needed columns
+missing_location_data = select(missing_location_join, iowa_data_final_names)
+
+# final Iowa cities dataframe
+iowa_data_final = vcat(iowa_data_final, missing_location_data)
