@@ -16,13 +16,12 @@ Pkg.add(
     "Tidier", 
     "TidierPlots", 
     "TidierDates",
-	  "TidierStrings", 
+	"TidierStrings", 
     "Dates", 
     "DotEnv", 
     "CSV", 
     "XLSX", 
     "DataFrames",
-    "DataFramesMeta",
     "Quarto", 
     "PrettyTables",
     "Random",
@@ -43,13 +42,15 @@ using DotEnv
 using CSV
 using XLSX
 using DataFrames
-using DataFramesMeta
 using Quarto
 using PrettyTables
 using Random
 using Impute
 using ZipFile
 using Downloads
+
+# load custom functions
+include("functions.jl")
 
 # Create .env file if it does not exist
 if !isfile(".env")
