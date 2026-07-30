@@ -92,7 +92,6 @@ us_counties_path=ENV["us_counties"];
 # Read in location data
 ###_____________________________________________________________________________
 
-
 #=
 read in location data for Iowa counties, districts / urbanicity
 =#
@@ -107,7 +106,6 @@ location = @chain location begin
     @clean_names
     @mutate county_fips = string.(county_fips)
 end;
-
 
 #=
 download the us zipcodes from the Census Bureau
