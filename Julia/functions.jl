@@ -268,11 +268,11 @@ Notes
 function time_string_extract(df::DataFrame, time::Symbol, target::Symbol)
 
     # Extract the source and target vectors from the DataFrame
-    time_vec   = df[!, time]
+    time_vec = df[!, time]
     target_vec = df[!, target]
 
     # Extract the non-missing element types
-    time_vec_eltype   = eltype(time_vec)   |> nonmissingtype
+    time_vec_eltype = eltype(time_vec) |> nonmissingtype
     target_vec_eltype = eltype(target_vec) |> nonmissingtype
 
     # Verify both inputs are Time vectors (allowing missing values)
@@ -284,21 +284,21 @@ function time_string_extract(df::DataFrame, time::Symbol, target::Symbol)
     end
 
     # Replace missing values to support vectorized processing
-    time_vec   = coalesce.(time_vec,   Time(0, 0, 0))
+    time_vec = coalesce.(time_vec, Time(0, 0, 0))
     target_vec = coalesce.(target_vec, Time(0, 0, 0))
 
     # Extract hour, minute, and second strings from each Time value
-    hrs_str  = Dates.format.(time_vec, "HH")
+    hrs_str = Dates.format.(time_vec, "HH")
     mins_str = Dates.format.(time_vec, "MM")
     secs_str = Dates.format.(time_vec, "SS")
 
     # Parse the extracted components into integers
-    hrs_int  = parse.(Int64, hrs_str)
+    hrs_int = parse.(Int64, hrs_str)
     mins_int = parse.(Int64, mins_str)
     secs_int = parse.(Int64, secs_str)
 
     # Convert integer components into Hour, Minute, and Second objects
-    hrs  = Hour.(hrs_int)
+    hrs = Hour.(hrs_int)
     mins = Minute.(mins_int)
     secs = Second.(secs_int)
 
@@ -306,4 +306,126 @@ function time_string_extract(df::DataFrame, time::Symbol, target::Symbol)
     adjusted = target_vec .+ hrs .+ mins .+ secs
 
     return adjusted
+end
+
+###_____________________________________________________________________________
+# make_regex_from_vector(): construct a safe alternation regex from a vector
+###_____________________________________________________________________________
+
+"""
+    make_regex_from_vector(values::Vector{String};
+                           word_boundary::Bool = true,
+                           case_insensitive::Bool = true)
+
+Construct a deterministic alternation-style regular expression from a
+vector of strings. All elements are escaped for regex safety, then joined
+using the pipe operator (`|`). Users may optionally enforce word
+boundaries and case-insensitive matching.
+
+Arguments
+---------
+values::Vector{String}
+    The observed strings that will form the alternation pattern.
+
+word_boundary::Bool = true
+    If `true`, the pattern is wrapped with `\\b` boundaries to ensure
+    whole-word matching.
+
+case_insensitive::Bool = true
+    If `true`, the regex is compiled with the `i` flag for
+    case-insensitive matching.
+
+Returns
+-------
+Regex
+    A compiled Julia `Regex` object representing an alternation of the
+    supplied values.
+
+Notes
+-----
+• All elements are escaped to preserve literal interpretation.
+• `join(values, "|")` is used to ensure correct alternation construction.
+• This is suitable for city, county, or other location-name pattern
+  generation in EMS epidemiology pipelines.
+"""
+function make_regex_from_vector(values::Vector{String};
+    word_boundary::Bool=true,
+    case_insensitive::Bool=true)
+
+    # Clean input by removing missing and trimming whitespace
+    clean_values = strip.(filter(!ismissing, values))
+
+    # Escape regex special characters so all names match literally
+    escaped_values = replace.(clean_values, r"([\\.^$|?*+\(\)\[\]{}])" => s"\\\1")
+
+    # Build alternation string: "Adair|Adams|Allamakee|..."
+    alternation = join(escaped_values, "|")
+
+    # Add word boundaries if requested
+    if word_boundary
+        alternation = "\\b(?:$alternation)\\b"
+    else
+        alternation = "(?:$alternation)"
+    end
+
+    # Apply case-insensitive flag if requested
+    if case_insensitive
+        return Regex(alternation, "i")
+    else
+        return Regex(alternation)
+    end
+end
+
+
+###_____________________________________________________________________________
+# safe_occursin(): missing-safe Boolean string matcher
+###_____________________________________________________________________________
+
+"""
+safe_occursin(pattern::Union{AbstractString,AbstractPattern,AbstractChar}, string::AbstractString)
+
+Perform missing-safe pattern matching. Returns `false` when `string` is
+`missing`, and `true`/`false` for actual string comparisons. This prevents
+missing propagation that would break boolean logic in `ifelse`, `case_when`,
+or TidierData filtering.
+
+Arguments
+---------
+pattern::Union{AbstractString, AbstractPattern, AbstractChar}
+    Literal string, compiled Regex, or single character.
+
+string::AbstractString
+    The string to be tested. May be `missing`.
+
+Returns
+-------
+Bool
+    `true` if the pattern matches, `false` if it does not or if the `string`
+    is `missing`.
+"""
+function safe_occursin(pattern::Union{AbstractString,AbstractPattern,AbstractChar}, string::AbstractString)
+
+    # If the string is missing, return FALSE (avoids missing propagation)
+    if ismissing(string)
+        return false
+    end
+
+    # Ensure the pattern is the correct type
+    if !(pattern isa AbstractString ||
+         pattern isa AbstractPattern ||
+         pattern isa AbstractChar)
+        error("`pattern` must be `AbstractString`, `AbstractPattern`, or AbstractChar.")
+    end
+
+    # Ensure the string is a string
+    if !(string isa AbstractString)
+        error("`string` must be an AbstractString or missing.")
+    end
+
+    # Perform literal or regex match and return a Bool
+    out = occursin(pattern, string)
+
+    # Exit the function
+    return out
+
 end
