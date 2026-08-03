@@ -1,4 +1,7 @@
 ###_____________________________________________________________________________
+# Only need to run this script if setup.jl does not pull in processed data
+# Check the .\output\data\ directory and the global environment, first
+###_____________________________________________________________________________
 # Prepare EMS Data for Analysis
 # Run this script first before moving on to analyses
 # Must run setup.jl before running this script
@@ -337,22 +340,21 @@ aed_final = @chain aed_adjust begin
                             ) => "MOUNT AYR",
         true => location_city_event_clean
     )
-
 end
-
     # --------------------------------------------------------------------------
     # Extract actual location using city_extension_pattern
     # --------------------------------------------------------------------------
-    @mutate(
-        location = str_extract.(
-            location_city_event_clean,
-            city_extension_pattern
-        )
-    )
+    aed_final.location = str_extract.(aed_final.location_city_event_clean, city_extension_pattern)
 
+
+    ###_________________________________________________________________________
     # If location is missing and the event is not "MEDIC AMBULANCE",
     # fall back to location_city_event_clean
-    @mutate(
+    ###_________________________________________________________________________
+
+    aed_final = @chain aed_final begin
+        @relocate(location, after = location_city_event_clean)
+        @mutate(
         location = ifelse.(
             ismissing.(location) .&
             (location_city_event_clean .!= "MEDIC AMBULANCE"),
@@ -367,7 +369,7 @@ end
     @left_join(
         select(iowa_data_final, :name, :name_county, :district,
             :designation, :urbanicity, :asciiname, :latitude, :longitude, :population, :elevation),
-        location = name
+        location_city_event_clean = name
     )
 
     # Relocate associated attributes next to location
@@ -377,3 +379,9 @@ end
         after = location
     )
 end
+
+###_____________________________________________________________________________
+# Write the AED data to XLSX
+###_____________________________________________________________________________
+
+XLSX.writetable("./output/data/aed_final.xlsx", "aed_data" => aed_final)
