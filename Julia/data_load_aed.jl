@@ -367,14 +367,14 @@ end
     # Join Iowa_Data_Final attributes
     # --------------------------------------------------------------------------
     @left_join(
-        select(iowa_data_final, :name, :name_county, :district,
+        select(iowa_data_final, :name, :name_county, :county_fips, :district,
             :designation, :urbanicity, :asciiname, :latitude, :longitude, :population, :elevation),
         location_city_event_clean = name
     )
 
     # Relocate associated attributes next to location
     @relocate(
-        name_county, district, designation, asciiname,
+        name_county, county_fips, district, designation, asciiname,
         latitude, longitude, population, elevation,
         after = location
     )
