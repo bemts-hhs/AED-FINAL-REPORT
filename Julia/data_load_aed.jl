@@ -189,7 +189,7 @@ aed_clean = @chain aed_final_init begin
             str_squish.(
                 coalesce.(location_city_event, "Not Recorded")
             ),
-            r"Rural(\s)*|Urban(\s)*|Suburban(\s)*|-(\s)*|\(|\)"
+            r"Rural(?:\s)*|\bUrban\b(?:\s)*|Suburban(?:\s)*|-(?:\s)*|\(|\)"i
         )
     )
     @relocate(
@@ -235,11 +235,14 @@ iowa_counties_vec = @chain iowa_data_final begin
 end
 
 # the city regex
-city_extension_pattern = make_regex_from_vector(iowa_cities_vec)
+city_extension_pattern = make_regex_from_vector(iowa_cities_vec, word_boundary=true)
 
+# get the base county pattern
+base_county_pattern =
+    make_regex_from_vector(iowa_counties_vec).pattern
+    
 # the county regex
-county_pattern = 
-    make_regex_from_vector(iowa_counties_vec) * r"\b(?:\s*CO\.?|\s*COUNTY)"i
+county_pattern = Regex("$(base_county_pattern)(?:\\sCO|\\sCOUNTY)\$")
 
 ###_____________________________________________________________________________
 # matching
@@ -269,7 +272,7 @@ aed_adjust = @chain aed_clean begin
 end
 
 # Remove county names using county_pattern
-aed_adjust.location_city_event_clean = replace.(aed_adjust.location_city_event_clean, county_pattern => "")
+aed_adjust.location_city_event_clean = str_replace.(aed_adjust.location_city_event_clean, county_pattern, "")
 
     # --------------------------------------------------------------------------
     # Deterministic fixes for common mis-recorded locations
@@ -338,8 +341,43 @@ aed_final = @chain aed_adjust begin
             occursin.(r"mount air"i,
                             location_city_event_clean), false
                             ) => "MOUNT AYR",
+        coalesce.(
+            occursin.(r"nemha"i,
+                            location_city_event_clean), false
+                            ) => "NEMAHA",
+        coalesce.(
+            occursin.(r"smithville"i,
+                            location_city_event_clean), false
+                            ) => "MOUNT AYR",
+        coalesce.(
+            occursin.(r"st.*charles"i,
+                            location_city_event_clean), false
+                            ) => "SAINT CHARLES",
+        coalesce.(
+            occursin.(r"odeboldt"i,
+                            location_city_event_clean), false
+                            ) => "ODEBOLT",
+        coalesce.(
+            occursin.(r"kilduff"i,
+                            location_city_event_clean), false
+                            ) => "KILLDUFF",
+        coalesce.(
+            occursin.(r"cresent"i,
+                            location_city_event_clean), false
+                            ) => "CRESCENT",
+        coalesce.(
+            occursin.(r"melcher"i,
+                            location_city_event_clean), false
+                            ) => "MELCHER-DALLAS",
         true => location_city_event_clean
     )
+    @mutate location_city_event_clean = str_squish.(location_city_event_clean)
+    @mutate location_city_event_clean = str_replace_all.(location_city_event_clean, r"[^A-Za-z0-9\s]+", " ")
+    @mutate location_city_event_clean = ifelse(
+        coalesce.(
+            occursin.(r"melcher"i, location_city_event_clean), false),
+            "MELCHER-DALLAS", location_city_event_clean
+        )
 end
     # --------------------------------------------------------------------------
     # Extract actual location using city_extension_pattern
@@ -358,7 +396,7 @@ end
         location = ifelse.(
             ismissing.(location) .&
             (location_city_event_clean .!= "MEDIC AMBULANCE"),
-            location_city_event_clean,
+            coalesce.(location, ""),
             location
         )
     )
@@ -369,7 +407,7 @@ end
     @left_join(
         select(iowa_data_final, :name, :name_county, :county_fips, :district,
             :designation, :urbanicity, :asciiname, :latitude, :longitude, :population, :elevation),
-        location_city_event_clean = name
+        location = name
     )
 
     # Relocate associated attributes next to location

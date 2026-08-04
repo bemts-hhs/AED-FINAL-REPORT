@@ -356,16 +356,16 @@ function make_regex_from_vector(values::Vector{String};
     clean_values = strip.(filter(!ismissing, values))
 
     # Escape regex special characters so all names match literally
-    escaped_values = replace.(clean_values, r"([\\.^$|?*+\(\)\[\]{}])" => s"\\\1")
+    escaped_values = replace.(clean_values, r"([\.^$|?*+()[]{}])" => s"\\\1")
 
-    # Build alternation string: "Adair|Adams|Allamakee|..."
+    # base alternation
     alternation = join(escaped_values, "|")
 
     # Add word boundaries if requested
     if word_boundary
         alternation = "\\b(?:$alternation)\\b"
     else
-        alternation = "(?:$alternation)"
+        alternation = "$alternation"
     end
 
     # Apply case-insensitive flag if requested

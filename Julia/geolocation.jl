@@ -274,3 +274,9 @@ missing_location_data = select(missing_location_join, iowa_data_final_names)
 
 # final Iowa cities dataframe
 iowa_data_final = vcat(iowa_data_final, missing_location_data)
+
+# export the iowa_data_final
+XLSX.writetable(
+    "./output/data/iowa_data_final.xlsx",
+    "iowa_data" => iowa_data_final 
+)
