@@ -13,13 +13,14 @@ In 2020, Iowa Health and Human Services received a $10,116,557 Helmsley Charitab
 ## Repository Structure
 
 ```
-
 ├──Julia/
-│   └── setup.jl # Environment, package loading, .env configuration
 │   └── data_load_aed.jl # AED data ingestion and preprocessing
 │   └── data_load_ems.jl # EMS data ingestion and preprocessing
 │   └── functions.jl # Custom parsing, regex, timestamp correction utilities
+│   └── geolocatoin.jl # Data ingestion and processing for geolocation
+│   └── setup.jl # Environment, package loading, .env configuration
 │   └── src.jl # Code to produce all analyses and plots
+└── Project.toml # Project dependencies
 └── README.md
 ```
 
@@ -27,13 +28,22 @@ In 2020, Iowa Health and Human Services received a $10,116,557 Helmsley Charitab
 
 The project uses Julia and the following key packages:
 
-* Tidier.jl, TidierDates.jl, TidierStrings.jl
-* DataFrames.jl
-* CSV.jl, XLSX.jl
-* DotEnv.jl
-* PrettyTables.jl
-* ZipFile.jl, Downloads.jl
-* Quarto.jl for documentation builds
+* CSV
+* DataFrames
+* DataFramesMeta
+* Dates
+* DotEnv
+* Downloads
+* Impute
+* PrettyTables
+* Quarto
+* Random
+* Tidier
+* TidierDates
+* TidierPlots
+* TidierStrings
+* XLSX
+* ZipFile
 
 All packages are instantiated through `Pkg.activate()` and `Pkg.instantiate()`.
 
@@ -103,18 +113,65 @@ The file is created automatically if missing and then loaded into `ENV[]`.
 
 All custom utilities (timestamp correction, regex generators, ID creation, string parsing) are stored in `functions.jl`. These functions enable consistent processing across AED and EMS datasets.
 
+## Geospatial Reference Processing
+
+`geolocation.jl` ingests and prepares geolocation data for this project.
+
+The project uses several external geospatial datasets to support deterministic city‑to‑county matching for AED and EMS incidents. These data are processed in a dedicated step prior to AED and EMS integration.
+
+### Iowa County, District, and Urbanicity Reference Table
+
+The script ingests the Iowa county and regional preparedness table from the file specified in `iowa_county_district_env`. Column names are standardized and county FIPS values are coerced to character type.
+
+### United States ZIP Code Data
+
+ZIP Code Tabulation Area (ZCTA) data are downloaded from the U.S. Census Bureau and imported as a delimited pipe (`|`) file. The workflow retains the distinct ZCTA GEOIDs for downstream geospatial joins.
+
+### Geonames U.S. Populated Places
+
+The Geonames U.S. dataset is downloaded, unzipped, and read in‑memory. The script assigns official Geonames column names, filters the dataset to Iowa, removes historical place labels, corrects county codes, and pads numeric codes to ensure join integrity.
+
+### Geonames U.S. Counties
+
+County names and codes are imported from the Geonames county dataset. Codes are parsed to extract country, state, and county components. Iowa counties are retained and cleaned for matching.
+
+### Construction of the Iowa City‑County Reference Table
+
+The Iowa city table (`iowa_data_final`) is constructed by:
+
+* Joining Geonames cities to Geonames counties.
+* Joining both to the Iowa county/district reference table.
+* Applying deterministic filters to remove known Geonames mismatches.
+* Standardizing names to uppercase.
+* Selecting and relocating geographic attributes for consistency.
+
+### Manual Additions for Missing Municipalities
+
+Several Iowa municipalities are absent from Geonames. These locations are added manually with verified coordinates, county assignments, and regional preparedness districts. The records are harmonized to match the `iowa_data_final` schema and appended to the main dataset.
+
+### Output
+
+The finalized statewide reference table is exported to:
+
+```
+./output/data/iowa_data_final.xlsx
+```
+
 ## Reproducibility
 
-### To run the project:
+### To run the project with similar data:
 
 ```
 julia setup.jl
+julia geolocation.jl
+julia functions.jl
 julia data_load_aed.jl
 julia data_load_ems.jl
+julia src.jl
 ```
 
 Ensure all paths in `.env` are set correctly.
 
 ## Contact
 
-For questions related to epidemiologic methods, data ingestion, or analytic reproducibility, contact BEMTS.
+For questions related to epidemiologic methods, data ingestion, or analytic reproducibility, contact BEMTS via iowahhsbemts@hhs.iowa.gov.
