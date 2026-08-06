@@ -280,3 +280,62 @@ XLSX.writetable(
     "./output/data/iowa_data_final.xlsx",
     "iowa_data" => iowa_data_final 
 )
+
+###_____________________________________________________________________________
+# Get county shapefiles from US Census Bureau
+###_____________________________________________________________________________
+
+# Download shapefile from US Census Bureau
+county_shapefile_src = Downloads.download(iowa_county_shapefiles)
+
+# Extract specific zip file
+county_shapefile_zip = ZipFile.Reader(county_shapefile_src)
+
+# Extract ALL files from the ZIP into .\output\geo
+for f in county_shapefile_zip.files
+    outdir = joinpath(".", "output", "geo", "county")
+    mkpath(outdir)
+    outpath = joinpath(outdir, f.name)
+    write(outpath, read(f))
+end
+
+# convert the shapefile to a GeoDataFrame
+county_geo_df = filter(:STATEFP => x -> x .== "19",
+    GeoDataFrames.read("./output/geo/county/tl_2025_us_county.shp")
+    )
+
+# gain the needed COUNTYFIPS feature to join the AED and other data
+county_geo = @chain county_geo_df begin
+    @mutate COUNTYFIPS = STATEFP .* COUNTYFP
+    @relocate(
+        COUNTYFIPS, after = COUNTYFP
+    )
+end
+
+###_____________________________________________________________________________
+# Get all state shapefiles from US Census Bureau
+###_____________________________________________________________________________
+
+# Download shapefile from US Census Bureau
+state_shapefile_src = Downloads.download(us_state_shapefiles)
+
+# Extract specific zip file
+state_shapefile_zip = ZipFile.Reader(state_shapefile_src)
+
+# Extract ALL files from the ZIP into .\output\geo
+for f in state_shapefile_zip.files
+    outdir = joinpath(".", "output", "geo", "state")
+    mkpath(outdir)
+    outpath = joinpath(outdir, f.name)
+    write(outpath, read(f))
+end
+
+#= 
+Define a vecotr of STATEFPs for Alaska, Hawaii, American Samoa, Northern Mariana Islands, Guam, Puerto Rico, and the US Virgin Islands
+=#
+not_states = ["02", "11", "15", "60", "66", "69", "72", "78"];
+
+# convert the shapefile to a GeoDataFrame
+state_geo = filter(row -> !(row.STATEFP in not_states),
+    GeoDataFrames.read("./output/geo/state/tl_2025_us_state.shp")
+    )

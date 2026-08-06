@@ -10,9 +10,10 @@ using Pkg
 
 # only need to install packages the first time
 
-#= 
-Pkg.add(
+
+#= Pkg.add(
     [
+    "ArchGDAL"
     "Tidier", 
     "TidierPlots", 
     "TidierDates",
@@ -25,29 +26,37 @@ Pkg.add(
     "Quarto", 
     "PrettyTables",
     "Random",
-	  "Impute",
-	  "Downloads",
-	  "ZipFile"
+	"Impute",
+	"Downloads",
+	"ZipFile",
+    "GeoDataFrames",
+    "GeoMakie",
+    "CairoMakie",
+    "Makie"
     ]
-); 
-=#
+); =#
 
 # Load packages
+using ArchGDAL
+using CSV
+using CairoMakie
+using DataFrames
+using Dates
+using DotEnv
+using Downloads
+using GeoDataFrames
+using GeoMakie
+using Impute
+using Makie
+using PrettyTables
+using Quarto
+using Random
 using Tidier
 using TidierDates
-using TidierStrings
-using Dates
 using TidierPlots
-using DotEnv
-using CSV
+using TidierStrings
 using XLSX
-using DataFrames
-using Quarto
-using PrettyTables
-using Random
-using Impute
 using ZipFile
-using Downloads
 
 # load custom functions
 include("functions.jl")
@@ -99,9 +108,27 @@ DotEnv.load!()
 ###_____________________________________________________________________________
 # Get environment variables into the global environment
 ###_____________________________________________________________________________
+
+# aed data
 aed_data_path = ENV["aed_env"];
+
+# ems data
 ems_data_path = ENV["ems_data_env"];
+
+# reference file for categorical county data from Iowa
 iowa_county_district_path = ENV["iowa_county_district_env"];
+
+# define the output dir
 output_folder = ENV["output_directory"];
+
+# US zipcode level data
 us_zipcodes_path=ENV["us_zips"];
+
+# US county-level data
 us_counties_path=ENV["us_counties"];
+
+# US county shapefiles from US Census Bureau
+iowa_county_shapefiles=ENV["iowa_county_shapefiles_zip"];
+
+# US state shapefiles from US Census Bureau
+us_state_shapefiles=ENV["us_states_shapefiles_zip"];
