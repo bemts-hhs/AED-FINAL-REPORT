@@ -9,5 +9,11 @@ Demographic analysis
 =#
 
 sex_distribution = @chain aed_final begin
-    @count
-end 
+    @count sex
+    @mutate sex = coalesce.(
+        sex, "Unknown"
+    )
+    @mutate percent = string.(
+                round(n ./ sum(n) * 100; digits = 2), "%"
+            )
+end
