@@ -412,7 +412,7 @@ end
 
     # Relocate associated attributes next to location
     @relocate(
-        name_county, county_fips, district, designation, asciiname,
+        name_county, county_fips, district, designation, urbanicity, asciiname,
         latitude, longitude, population, elevation,
         after = location
     )

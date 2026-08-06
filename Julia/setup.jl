@@ -54,7 +54,7 @@ include("functions.jl")
 
 # load the EMS data if it has already been written to .xlsx within this project
 if !(@isdefined ems_aed_runs) && isfile("./output/data/ems_aed_runs.xlsx")
-    DataFrame(
+    ems_aed_runs = DataFrame(
         XLSX.readtable("./output/data/ems_aed_runs.xlsx", "ems_data")
     )
     else
@@ -63,7 +63,7 @@ end
 
 # load the AED data if it has already been written to .xlsx within this project
 if !(@isdefined aed_final) && isfile("./output/data/aed_final.xlsx")
-    DataFrame(
+    aed_final = DataFrame(
         XLSX.readtable("./output/data/aed_final.xlsx", "aed_data")
     )
     else
