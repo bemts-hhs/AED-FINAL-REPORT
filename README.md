@@ -28,13 +28,17 @@ In 2020, Iowa Health and Human Services received a $10,116,557 Helmsley Charitab
 
 The project uses Julia and the following key packages:
 
+* ArchGDAL
 * CSV
+* CairoMakie
 * DataFrames
-* DataFramesMeta
 * Dates
 * DotEnv
 * Downloads
+* GeoDataFrames
+* GeoMakie
 * Impute
+* Makie
 * PrettyTables
 * Quarto
 * Random
@@ -57,7 +61,7 @@ Variables include:
 * `ems_data_env` – ImageTrend Elite EMS registry export
 * `iowa_county_district_env` – Reference table for Iowa municipalities and counties
 * `output_directory` – Output data folder
-* `us_zips`, `us_counties` – Geospatial reference files
+* `us_zips`, `us_counties`, `iowa_county_shapefiles_zip`, `us_states_shapefiles_zip` – Geospatial reference files
 
 The file is created automatically if missing and then loaded into `ENV[]`.
 
