@@ -10,7 +10,6 @@ using Pkg
 
 # only need to install packages the first time
 
-
 #= Pkg.add(
     [
     "ArchGDAL"
@@ -32,7 +31,11 @@ using Pkg
     "GeoDataFrames",
     "GeoMakie",
     "CairoMakie",
-    "Makie"
+    "Makie",
+    "HTTP",
+    "GADM",
+    "GeometryOps",
+    "InteractiveUtils
     ]
 ); =#
 
@@ -44,9 +47,13 @@ using DataFrames
 using Dates
 using DotEnv
 using Downloads
+using GADM
 using GeoDataFrames
 using GeoMakie
+using GeometryOps
+using HTTP
 using Impute
+using InteractiveUtils
 using Makie
 using PrettyTables
 using Quarto
@@ -103,7 +110,7 @@ end;
 
 # Load .env file into ENV[]
 DotEnv.config();
-DotEnv.load!()
+DotEnv.load!();
 
 ###_____________________________________________________________________________
 # Get environment variables into the global environment
@@ -132,3 +139,6 @@ iowa_county_shapefiles=ENV["iowa_county_shapefiles_zip"];
 
 # US state shapefiles from US Census Bureau
 us_state_shapefiles=ENV["us_states_shapefiles_zip"];
+
+# US heart disease mortality data from CDC OData connection
+us_heart_disease_mortality=ENV["us_heart_disease_mortality_odata"];

@@ -429,3 +429,67 @@ function safe_occursin(pattern::Union{AbstractString,AbstractPattern,AbstractCha
     return out
 
 end
+
+"""
+    get_versioninfo_table()
+
+Capture the console output produced by `InteractiveUtils.versioninfo()` and
+convert it into a two‑column `DataFrame` containing keys and values. This
+provides a clean, tabular representation similar to R's `sessionInfo()` that is
+easy to copy and paste out of the Julia REPL or VS Code terminal.
+
+Returns
+-------
+DataFrame
+    A DataFrame with columns:
+    - `Key`: The attribute name parsed from the version info output.
+    - `Value`: The associated value for the attribute.
+
+Notes
+-----
+- The function captures `versioninfo()` output by writing it to an in‑memory
+  `IOBuffer`.  
+- Each line is parsed by splitting on the first colon character.  
+- Lines without a colon are included under the `Misc` key.
+
+Examples
+--------
+```julia
+version_table = get_versioninfo_table()
+println(version_table)
+```
+"""
+function get_versioninfo_table()
+
+    # Capture the printed output into an IOBuffer
+    io_buffer = IOBuffer()
+    InteractiveUtils.versioninfo(io_buffer)
+    raw_text = String(take!(io_buffer))
+
+    # Split raw text into lines
+    lines = split(raw_text, "\n")
+
+    parsed_table = DataFrame(Category = String[], Detail = String[])
+
+    current_category = "General"  # Default category
+
+    for ln in lines
+        stripped = strip(ln)
+
+        # Category detection: lines ending with ":" denote sections
+        if endswith(stripped, ":")
+            current_category = replace(stripped, ":" => "")
+            continue
+        end
+
+        # Skip empty lines
+        if stripped == ""
+            continue
+        end
+
+        # Otherwise treat as detail belonging to last seen category
+        push!(parsed_table, (current_category, stripped))
+    end
+
+    return parsed_table
+end

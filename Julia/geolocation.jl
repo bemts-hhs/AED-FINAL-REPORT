@@ -276,10 +276,22 @@ missing_location_data = select(missing_location_join, iowa_data_final_names)
 iowa_data_final = vcat(iowa_data_final, missing_location_data)
 
 # export the iowa_data_final
+if isfile("./output/data/iowa_data_final.xlsx")
+
+    # remove the file if it exists
+    rm("./output/data/iowa_data_final.xlsx")
+
+    # write the updated file
+    XLSX.writetable(
+    "./output/data/iowa_data_final.xlsx",
+    "iowa_data" => iowa_data_final 
+)
+else
 XLSX.writetable(
     "./output/data/iowa_data_final.xlsx",
     "iowa_data" => iowa_data_final 
 )
+end
 
 ###_____________________________________________________________________________
 # Get county shapefiles from US Census Bureau
