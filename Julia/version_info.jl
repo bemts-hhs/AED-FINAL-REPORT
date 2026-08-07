@@ -3,4 +3,13 @@
 ###_____________________________________________________________________________
 
 # load custom functions if not already done
-include("./Julia/functions.jl");
+include("functions.jl");
+
+# get the version info as a DataFrame
+version_info = get_versioninfo_table()
+
+# write to disk as a .xlsx file
+XLSX.writetable(
+    "output/version/version_info.xlsx",
+    "version" => version_info
+);
