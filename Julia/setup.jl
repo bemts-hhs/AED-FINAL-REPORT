@@ -35,14 +35,16 @@ using Pkg
     "HTTP",
     "GADM",
     "GeometryOps",
-    "InteractiveUtils
+    "InteractiveUtils",
+    "ColorBrewer"
     ]
 ); =#
 
 # Load packages
 using ArchGDAL
-using CSV
 using CairoMakie
+using ColorBrewer
+using CSV
 using DataFrames
 using Dates
 using DotEnv

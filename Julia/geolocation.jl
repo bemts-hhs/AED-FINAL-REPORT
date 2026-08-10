@@ -20,30 +20,6 @@ location = @chain location begin
     @mutate county_fips = string.(county_fips)
 end;
 
-#=
-download the us zipcodes from the Census Bureau
-=#
-us_zips_file = Downloads.download(
-    us_zipcodes_path
-);
-
-#=
-get us zips downloaded data as a DataFrame
-=#
-us_zips_init = CSV.File(
-    us_zips_file,
-    delim=('|'),
-    header=true,
-    ignorerepeated=false,
-) |> DataFrame;
-
-#=
-get the distinct table of us_zips
-=#
-us_zips = @chain us_zips_init begin
-    @distinct GEOID_ZCTA5_20
-end;
-
 # ------------------------------------------------------------------------------
 # Download, unzip, read, and type the Geonames US dataset
 # ------------------------------------------------------------------------------

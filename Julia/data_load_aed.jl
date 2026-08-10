@@ -278,7 +278,10 @@ aed_adjust.location_city_event_clean = str_replace.(aed_adjust.location_city_eve
     # Deterministic fixes for common mis-recorded locations
     # --------------------------------------------------------------------------
 aed_final = @chain aed_adjust begin
-
+    @mutate year = TidierDates.year.(date_of_use)
+    @relocate(
+        year, after = date_of_use
+    )
     @relocate(
         location_city_event_clean, after = location_city_event
     )
@@ -379,6 +382,7 @@ aed_final = @chain aed_adjust begin
             "MELCHER-DALLAS", location_city_event_clean
         )
 end
+
     # --------------------------------------------------------------------------
     # Extract actual location using city_extension_pattern
     # --------------------------------------------------------------------------
