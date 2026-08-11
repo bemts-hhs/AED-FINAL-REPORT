@@ -37,6 +37,7 @@ using Pkg
     "GeometryOps",
     "InteractiveUtils",
     "ColorBrewer"
+    "StatsPlots"
     ]
 ); =#
 
@@ -60,6 +61,7 @@ using Makie
 using PrettyTables
 using Quarto
 using Random
+using StatsPlots
 using Tidier
 using TidierDates
 using TidierPlots

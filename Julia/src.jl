@@ -406,18 +406,18 @@ aed_deployments_plot = Makie.with_theme(theme_minimal()) do
         aed_deployments_by_year.count,
         color=aed_deployments_by_year.count,
         strokecolor=:transparent,
-        axis = (
-            xticks = (2021:2026, ["2021", "2022", "2023", "2024", "2025", "2026"]),
-            title = "AED Deployments by Year",
-            titlealign = :left,
-            titlesize = 18,
-            yticklabelsvisible = false,
-            xticklabelsize = 16
+        axis=(
+            xticks=(2021:2026, ["2021", "2022", "2023", "2024", "2025", "2026"]),
+            title="AED Deployments by Year",
+            titlealign=:left,
+            titlesize=18,
+            yticklabelsvisible=false,
+            xticklabelsize=16
         ),
-        label_size = 16,
-        bar_labels = :y,
-        flip_labels_at = 400,
-        label_formatter = x -> string(Int(round(x)))
+        label_size=16,
+        bar_labels=:y,
+        flip_labels_at=400,
+        label_formatter=x -> string(Int(round(x)))
     )
 end;
 
@@ -437,6 +437,83 @@ distinct_locations = unique(
 
 ## get missing locations ----
 missing_locations = filter(:location => l -> ismissing.(l), aed_final) |> nrow;
+
+## deployments by call type ----
+aed_deployments_by_calltype = sort(
+    combine(
+        groupby(
+            unique(aed_final, :unique_incident_id), :call_type
+        ),
+        nrow => :count), :call_type);
+
+## deployments by call type with percent ----
+aed_deployments_by_calltype_add = sort(
+    combine(
+        aed_deployments_by_calltype,
+        :call_type => :call_type,
+        :count => :count,
+        :count => (x -> x ./ sum(x) * 100) => :percent
+    )
+)
+
+## get deployments by call type over the years ----
+aed_deployments_calltype_year = sort(
+    combine(
+        groupby(
+            unique(aed_final, :unique_incident_id), [:year, :call_type]
+        ),
+        nrow => :count
+    )
+);
+
+## get deployments by call type over the years with percent ----
+aed_deployments_calltype_year_add = combine(
+    groupby(aed_deployments_calltype_year, :year),
+    :call_type => :call_type,
+    :count => :count,
+    :count => (x -> x ./ sum(x)) => :percent
+);
+
+## map call types to integers ----
+call_type_dict = Dict(
+    "Cardiac Arrest" => 1,
+    "Overdose" => 2,
+    "Other Cause" => 3,
+    "Unknown" => 4
+);
+
+## create the call type index ----
+call_type_index = [
+    call_type_dict[string(d)] for d in aed_deployments_calltype_year_add.call_type
+    ];
+
+## deployments by call type horizontal 100% stacked bars ----
+aed_deployments_call_type_stacked = Makie.with_theme(theme_minimal()) do
+
+    @df aed_deployments_calltype_year_add barplot(
+        :year,
+        :percent,
+        stack = call_type_index,
+        color = call_type_index,
+        strokecolor=:transparent,
+        axis=(
+            xticks=(2021:2026, ["2021", "2022", "2023", "2024", "2025", "2026"]),
+            yticks=(0.0:0.25:1.0, ["0.0", "0.25", "0.5", "0.75", "1.0"]),
+            title="AED Deployments by Year and Call Type",
+            titlealign=:left,
+            titlesize=18,
+            yticklabelsvisible=true,
+            xticklabelsize=16
+        ),
+        label_size=16,
+        bar_labels=nothing,
+        flip_labels_at=0,
+        label_formatter=x -> string(Int(round(x)))
+    )
+
+end;
+
+## add a legend to the stacked bars ----
 
 ###_____________________________________________________________________________
 # Demographic analysis ----

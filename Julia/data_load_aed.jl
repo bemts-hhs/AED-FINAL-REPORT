@@ -275,11 +275,29 @@ end
 ##  Remove county names using county_pattern ----
 aed_adjust.location_city_event_clean = str_replace.(aed_adjust.location_city_event_clean, county_pattern, "")
 
-    # --------------------------------------------------------------------------
+    # __________________________________________________________________________
     # Deterministic fixes for common mis-recorded locations
-    # --------------------------------------------------------------------------
+    # __________________________________________________________________________
 aed_final = @chain aed_adjust begin
-    @mutate year = TidierDates.year.(date_of_use)
+    @mutate(
+        cardiac_episode = coalesce.(cardiac_episode, false),
+        od_case = coalesce.(od_case, false),
+        other_case_binary = ifelse(ismissing.(other_case), false, true)
+    )
+    @mutate other_case_binary = ifelse(
+        cardiac_episode .& other_case_binary, false, other_case_binary
+        )
+    @mutate(year = TidierDates.year.(date_of_use),
+            call_type = case_when(
+                cardiac_episode => "Cardiac Arrest",
+                od_case => "Overdose",
+                other_case_binary => "Other Cause",
+                true => "Unknown"
+            )
+    )
+    @relocate(
+        call_type, after = other_case
+    )
     @relocate(
         year, after = date_of_use
     )
@@ -384,11 +402,10 @@ aed_final = @chain aed_adjust begin
         )
 end
 
-    # --------------------------------------------------------------------------
+    # __________________________________________________________________________
     # Extract actual location using city_extension_pattern
-    # --------------------------------------------------------------------------
+    # __________________________________________________________________________
     aed_final.location = str_extract.(aed_final.location_city_event_clean, city_extension_pattern)
-
 
     ###_________________________________________________________________________
     # If location is missing and the event is not "MEDIC AMBULANCE",
@@ -406,9 +423,9 @@ end
         )
     )
 
-    # --------------------------------------------------------------------------
+    # __________________________________________________________________________
     # Join Iowa_Data_Final attributes
-    # --------------------------------------------------------------------------
+    # __________________________________________________________________________
     @left_join(
         select(iowa_data_final, :name, :name_county, :county_fips, :district,
             :designation, :urbanicity, :asciiname, :latitude, :longitude, :population, :elevation),
