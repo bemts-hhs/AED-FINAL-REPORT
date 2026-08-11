@@ -2,26 +2,26 @@
 # Only need to run this script if setup.jl does not pull in processed data
 # Check the .\output\data\ directory and the global environment, first
 ###_____________________________________________________________________________
-# Prepare EMS Data for Analysis
+# Prepare EMS Data for Analysis ----
 # Run this script first before moving on to analyses
 # Must run setup.jl before running this script
 ###_____________________________________________________________________________
 
 ###_____________________________________________________________________________
-# read in the data
+##  read in the data ----
 ###_____________________________________________________________________________
 
-# read in the data
+##  read in the data ----
 ems_raw = CSV.read(ems_data_path, DataFrame);
 
-# clean names
+##  clean names ----
 ems_raw = @chain ems_raw begin
     @clean_names
     @rename_with str -> str_remove_all(str, r"\(|\)")
     @rename_with str -> str_replace_all(str, r"=", "_")
 end;
 
-# manipulations to prepare EMS data for analysis
+##  manipulations to prepare EMS data for analysis ----
 # clean the EMS data for comparison
 ems_aed = @chain ems_raw begin
     @distinct
@@ -51,10 +51,10 @@ ems_aed = @chain ems_raw begin
 end;
 
 ###_____________________________________________________________________________
-# Analyze EMS data
+# Analyze EMS data ----
 ###_____________________________________________________________________________
 
-# get all unique procedures, examine
+##  get all unique procedures, examine ----
 all_procedures = @chain ems_aed begin
     @select procedure_performed_description_e_procedures_03
     @distinct
@@ -70,7 +70,7 @@ take the sum of the procedures per Run ID which gives you # of shocks total
 over all defib procedures  
 =#
 
-# 1. Select relevant variables
+##  1. Select relevant variables ----
 df = select(
     ems_aed,
     :fact_incident_pk,
@@ -79,7 +79,7 @@ df = select(
     :procedure_number_of_attempts_e_procedures_05,
 )
 
-# 2. Filter defibrillation procedures
+##  2. Filter defibrillation procedures ----
 pattern =
     r"automatic external cardiac defibrillator (physical object)|cv - automated external defibrillator|automatic cardiac defibrillator (physical object)|cv - defibrillation - manual|defibrillation, aed|electrical cardioversion (& defibrillation)|cv - cardioversion|cardiac resuscitation|management of external defibrillation"i
 
@@ -88,10 +88,10 @@ df = df[
     :,
 ]
 
-# 3. Distinct rows
+##  3. Distinct rows ----
 df = @distinct df
 
-# 4. Coalesce missings
+##  4. Coalesce missings ----
 df.procedure_performed_description_e_procedures_03 =
     coalesce.(df.procedure_performed_description_e_procedures_03, "")
 
@@ -101,10 +101,10 @@ df.procedure_performed_date_time_e_procedures_01 =
 df.procedure_number_of_attempts_e_procedures_05 =
     coalesce.(df.procedure_number_of_attempts_e_procedures_05, 1)
 
-# 5. Group by run ID
+##  5. Group by run ID ----
 gdf = groupby(df, :fact_incident_pk)
 
-# 6. Summarize exactly as your mutate block intended
+##  6. Summarize exactly as your mutate block intended ----
 ems_aed_defib = combine(gdf,
     :procedure_number_of_attempts_e_procedures_05 => sum => :shocks,
     :procedure_performed_description_e_procedures_03 =>
@@ -115,19 +115,19 @@ ems_aed_defib = combine(gdf,
         (x -> join(string.(x), ", ")) => :procedure_number_of_attempts_e_procedures_05,
 )
 
-# 7. Final distinct
+##  7. Final distinct ----
 ems_aed_defib = unique(ems_aed_defib)
 
-# just get the shocks as a separate object for the join
+##  just get the shocks as a separate object for the join ----
 ems_shocks = select(
     ems_aed_defib,
     :fact_incident_pk,
     :shocks
 )
 
-# deal with multiple procedures to reduce the rows to 1 row = 1 run, no duplication
+##  deal with multiple procedures to reduce the rows to 1 row = 1 run, no duplication ----
 
-# date manipulation and relocate new features
+##  date manipulation and relocate new features ----
 ems_aed_runs_dates = @chain ems_aed begin
     @distinct
     @mutate(
@@ -154,7 +154,7 @@ ems_aed_runs_dates = @chain ems_aed begin
     )
 end;
 
-# temporary dataframe to conduct some manipulations on one-to-many features
+##  temporary dataframe to conduct some manipulations on one-to-many features ----
 # procedures
 ems_aed_runs_temp_unique_proc = unique(
     select(ems_aed_runs_dates, :fact_incident_pk,
@@ -162,11 +162,11 @@ ems_aed_runs_temp_unique_proc = unique(
         :procedure_performed_date_time_e_procedures_01, :procedure_performed_description_e_procedures_03, :procedure_number_of_attempts_e_procedures_05)
 )
 
-# split - group the temp table
+##  split - group the temp table ----
 ems_aed_runs_temp_proc_group = groupby(ems_aed_runs_temp_unique_proc,
     :fact_incident_pk)
 
-# apply string concatenation and combine the temp table - procedures
+##  apply string concatenation and combine the temp table - procedures ----
 ems_aed_runs_temp_proc_concat = unique(
     combine(
         ems_aed_runs_temp_proc_group,
@@ -181,7 +181,7 @@ ems_aed_runs_temp_proc_concat = unique(
     )
 )
 
-# temporary dataframe to conduct some manipulations on one-to-many features
+##  temporary dataframe to conduct some manipulations on one-to-many features ----
 # procedures
 ems_aed_runs_temp_unique_med = unique(
     select(ems_aed_runs_dates, :fact_incident_pk,
@@ -189,11 +189,11 @@ ems_aed_runs_temp_unique_med = unique(
     )
 )
 
-# split - group the temp table
+##  split - group the temp table ----
 ems_aed_runs_temp_med_group = groupby(ems_aed_runs_temp_unique_med,
     :fact_incident_pk)
 
-# apply string concatenation and combine the temp table - medications
+##  apply string concatenation and combine the temp table - medications ----
 ems_aed_runs_temp_med_concat = unique(
     combine(
         ems_aed_runs_temp_med_group,
@@ -204,12 +204,12 @@ ems_aed_runs_temp_med_concat = unique(
     )
 );
 
-# get the distinct ems_aed table
+##  get the distinct ems_aed table ----
 ems_aed_unique = @chain ems_aed_runs_dates begin
     @distinct fact_incident_pk
 end;
 
-# join now one-to-one EMS data to fact table
+##  join now one-to-one EMS data to fact table ----
 ems_aed_runs = @chain ems_aed_unique begin
     @ungroup
     @select(
@@ -349,7 +349,7 @@ ems_aed_runs = @chain ems_aed_unique begin
 end;
 
 ###_____________________________________________________________________________
-# Write the final file to XLSX for further analysis
+# Write the final file to XLSX for further analysis ----
 ###_____________________________________________________________________________
 
 XLSX.writetable("./output/data/ems_aed_runs.xlsx", "ems_data" => ems_aed_runs)

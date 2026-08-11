@@ -2,27 +2,27 @@
 # Only need to run this script if setup.jl does not pull in processed data
 # Check the .\output\data\ directory and the global environment, first
 ###_____________________________________________________________________________
-# Prepare EMS Data for Analysis
+# Prepare AED Data for Analysis ----
 # Run this script first before moving on to analyses
 # Must run setup.jl before running this script
 ###_____________________________________________________________________________
 
 ###_____________________________________________________________________________
-# read in the data
+## read in the data ----
 ###_____________________________________________________________________________
 
-# define the data type specifications for the custom function xlsx_cell_range_to_df
+##  define the data type specifications for the custom function xlsx_cell_range_to_df ----
 
 spec = [Date, Time, Time, Time, Time, String, Number, Any, Any, Any, Any, String, Any, String, Bool, Bool, String, Bool, Bool, Bool, Bool, Number, String, String, Bool, Bool, Bool, Bool, Bool, Any, Bool, Number, Number, Number, Number, Number, Number, String]
 
-# read in AED data using a custom function
+##  read in AED data using a custom function ----
 aed_raw = xlsx_cell_range_to_df(
     aed_data_path, "VALID DATA ENTRY", "A1:AL2399";
     clean_up=true,
     type_spec=spec
 );
 
-# aed observations
+##  aed observations ----
 aed_n_obs = nrow(aed_raw)
 
 #= 
@@ -30,13 +30,13 @@ conduct manipulations on the aed_raw dataset in order to create new features
 mostly for time intelligence and convenient categories
 =#
 
-# make a copy of the aed_raw dataset
+##  make a copy of the aed_raw dataset ----
 aed_data = deepcopy(aed_raw)
 
-# add the unique incident id directly, cannot do this inside @chain
+##  add the unique incident id directly, cannot do this inside @chain ----
 aed_data.unique_incident_id = generate_random_id(aed_n_obs; seed=10232015)
 
-# manipulations using @chain
+##  manipulations using @chain ----
 aed_final_init = @chain aed_data begin
     @relocate(
         unique_incident_id, before = date_of_use
@@ -58,16 +58,16 @@ aed_final_init = @chain aed_data begin
     @relocate(time_aed_on_timestamp, after = time_aed_on)
 end
 
-# correct the ambulance to patient timestamp
+##  correct the ambulance to patient timestamp ----
 aed_final_init.amb_pat_timestamp_fix =
     correct_midnight_rollover(aed_final_init, :amb_toc_timestamp, :amb_pat_timestamp)
 
-# calculate the time aed off
+##  calculate the time aed off ----
 aed_final_init.time_aed_off = time_string_extract(
     aed_final_init, :total_time_aed_actually_used_min_sec, :time_aed_on
 )
 
-# get the time aed off timestamp
+##  get the time aed off timestamp ----
 aed_final_init = @chain aed_final_init begin
     @mutate(
         time_aed_off_timestamp = date_of_use .+ time_aed_off
@@ -89,11 +89,11 @@ aed_final_init = @chain aed_final_init begin
     @relocate(time_aed_off_timestamp, after = time_aed_off)
 end
 
-# correct the time aed off and on relationship
+##  correct the time aed off and on relationship ----
 aed_final_init.time_aed_off_timestamp_fix =
     correct_midnight_rollover(aed_final_init, :time_aed_on_timestamp, :time_aed_off_timestamp)
 
-# approach final manipulations for the aed data
+##  approach final manipulations for the aed data ----
 aed_clean = @chain aed_final_init begin
     @relocate(
         time_aed_off_timestamp_fix, after = time_aed_off_timestamp
@@ -205,20 +205,20 @@ end
 
 
 ###_____________________________________________________________________________
-# attempt a deterministic match between aed_clean and geonames location data
+# deterministic match between aed_clean and geonames location data ----
 ###_____________________________________________________________________________
 
-# create a pattern for the words after the first name of a city
+##  create a pattern for the words after the first name of a city ----
 # e.g. Council (Bluffs)
 
-# a df to observe
+##  a df to observe ----
 iowa_cities = @chain iowa_data_final begin
     @select name
     @distinct
     @arrange name
 end
 
-# a vector to create the regex
+##  a vector to create the regex ----
 iowa_cities_vec = @chain iowa_data_final begin
     @select name
     @distinct
@@ -226,7 +226,7 @@ iowa_cities_vec = @chain iowa_data_final begin
     @pull name
 end
 
-# an additional vector to help clean out county names from the location names
+##  an additional vector to help clean out county names from the location names ----
 iowa_counties_vec = @chain iowa_data_final begin
     @select name_county
     @distinct
@@ -234,18 +234,18 @@ iowa_counties_vec = @chain iowa_data_final begin
     @pull name_county
 end
 
-# the city regex
+##  the city regex ----
 city_extension_pattern = make_regex_from_vector(iowa_cities_vec, word_boundary=true)
 
-# get the base county pattern
+##  get the base county pattern ----
 base_county_pattern =
     make_regex_from_vector(iowa_counties_vec).pattern
     
-# the county regex
+##  the county regex ----
 county_pattern = Regex("$(base_county_pattern)(?:\\sCO|\\sCOUNTY)\$")
 
 ###_____________________________________________________________________________
-# matching
+# matching ----
 # in each implementation look out for a warning from dplyr
 # indicating that there are many to many relationships among x and y
 # this means that we found another city that is assigned to more than 1 county
@@ -254,14 +254,15 @@ county_pattern = Regex("$(base_county_pattern)(?:\\sCO|\\sCOUNTY)\$")
 ###_____________________________________________________________________________
 
 # _____________________________________________________________________________
-# Clean location_city_event_clean using deterministic regex and string utilities
+# Clean location_city_event_clean ----
+# using deterministic regex and string utilities
 # _____________________________________________________________________________
 
 aed_adjust = @chain aed_clean begin
 
-    # --------------------------------------------------------------------------
-    # Basic string cleaning and normalization
-    # --------------------------------------------------------------------------
+###_____________________________________________________________________________
+## Basic string cleaning and normalization ----
+###_____________________________________________________________________________
 
     # Replace "Ft." with "Fort"
     @mutate location_city_event_clean =
@@ -271,7 +272,7 @@ aed_adjust = @chain aed_clean begin
     @mutate location_city_event_clean = str_to_upper(location_city_event_clean)
 end
 
-# Remove county names using county_pattern
+##  Remove county names using county_pattern ----
 aed_adjust.location_city_event_clean = str_replace.(aed_adjust.location_city_event_clean, county_pattern, "")
 
     # --------------------------------------------------------------------------
@@ -423,7 +424,7 @@ end
 end
 
 ###_____________________________________________________________________________
-# Write the AED data to XLSX
+# Write the AED data to XLSX ----
 ###_____________________________________________________________________________
 
 XLSX.writetable("./output/data/aed_final.xlsx", "aed_data" => aed_final)

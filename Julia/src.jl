@@ -1,24 +1,24 @@
 ###_____________________________________________________________________________
-# Source code for the AED final report
+# Source code for the AED final report ----
 ###_____________________________________________________________________________
 # Must at least first run setup.jl to load the necessary packages and data.
 ###_____________________________________________________________________________
 
-# Ingest heart disease mortality data
+# Ingest heart disease mortality data ----
 # Access the CDC heart disease data Socrata API feed for heart disease mortality data
 heart_disease_response = HTTP.get(us_heart_disease_mortality)
 
-# full US heart disease mortality dataset
+## full US heart disease mortality dataset ----
 heart_disease_data_full = CSV.read(IOBuffer(heart_disease_response.body), DataFrame)
 
-# base dataset for future work, take out sex and race based adjustments
+## base dataset for future work, take out sex and race based adjustments ----
 heart_disease_data = @chain heart_disease_data_full begin
     @filter begin
         stratification1 == "Overall" && stratification2 == "Overall"
     end
 end
 
-# Filter data down to states
+## Filter data down to states ----
 heart_disease_data_state = @chain heart_disease_data begin
     @mutate locationid = lpad.(string.(locationid), 2, "0")
     @filter begin
@@ -32,7 +32,7 @@ heart_disease_data_state = @chain heart_disease_data begin
     )
 end
 
-# filter data down to county
+## filter data down to county ----
 heart_disease_data_county = @chain heart_disease_data begin
     @mutate locationid = lpad.(string.(locationid), 3, "0")
     @filter begin
@@ -52,26 +52,29 @@ heart_disease_data_county = @chain heart_disease_data begin
     )
 end
 
-# Filter data down to national
+## Filter data down to national ----
 heart_disease_data_national = @chain heart_disease_data begin
     @filter geographiclevel == "Nation"
     @select data_value
 end
 
 ###_____________________________________________________________________________
-# Geographic analysis - heart disease data for the US
+# Geographic analysis - heart disease data for the US ----
 ###_____________________________________________________________________________
 
+
+## get the centroid of the continental US ----
+
 #= 
-get the centroid of the continental US
 This uses GeometryOps to compute a single (lon, lat) coordinate that represents
 the center of all state geometries. It is used to center the orthographic 
 projection so the United States appears centered and natural on the map.
- =#
+=#
 us_centroid = GeometryOps.centroid(heart_disease_data_state.geometry)
 
+## Create a GeoMakie scene ----
+
 #= 
-Create a GeoMakie scene
 A Makie `Figure` is the plotting canvas; `GeoAxis` is the spatial axis that 
 understands geographic projections and can draw polygon geometries correctly.
 =#
@@ -105,7 +108,7 @@ us_ax = GeoAxis(us_map[1, 1],
     dest="+proj=ortho +lon_0=$(us_centroid[1]) +lat_0=$(us_centroid[2])"
 );
 
-# Build a color map based on data_value
+## Build a color map based on data_value ----
 # `vals` contains the CDC age-adjusted mortality rates. Missing values are 
 # replaced with NaN so Makie’s color pipeline can handle them. Then we compute 
 # the min/max to ensure the colorbar matches the actual range of the data.
@@ -113,11 +116,11 @@ us_vals = coalesce.(heart_disease_data_state.data_value, NaN);
 us_min_val = minimum(skipmissing(heart_disease_data_state.data_value));
 us_max_val = maximum(skipmissing(heart_disease_data_state.data_value));
 
-# A reversed Viridis colormap (longer dark-to-light gradient)
+## A reversed Viridis colormap (longer dark-to-light gradient) ----
 # This gives high mortality rates brighter/lighter color tones.
 cmap = cgrad(:inferno, 256, rev=true); # Makie colormap
 
-# Build polygon objects from your geometries
+## Build polygon objects from your geometries ----
 # `poly!` directly plots the vector geometries stored in the `geometry` column.
 # All state polygons are drawn using the orthographic projection defined above.
 poly!(us_ax, heart_disease_data_state.geometry,
@@ -127,7 +130,7 @@ poly!(us_ax, heart_disease_data_state.geometry,
     strokecolor=:white
 );
 
-# Add a colorbar below the map
+## Add a colorbar below the map ----
 # The colorbar uses the same colormap and data range. Font settings align with
 # HHS design style (Work Sans). Setting `vertical = false` makes it horizontal.
 Colorbar(
@@ -140,24 +143,25 @@ Colorbar(
     ticklabelfont="Work Sans"
 )
 
-# Save the output image to disk
+## Save the output image to disk ----
 # This writes the entire figure to a PNG file in your output directory.
 save("./output/plots/us_map.png", us_map)
 
 ###_____________________________________________________________________________
-# Geographic analysis - heart disease data for the state of Iowa, USA
+# Geographic analysis - heart disease data for the state of Iowa, USA ----
 ###_____________________________________________________________________________
 
+## get the centroid of the state of Iowa, USA ----
+
 #= 
-get the centroid of the continental US
 This uses GeometryOps to compute a single (lon, lat) coordinate that represents
 the center of all state geometries. It is used to center the orthographic 
 projection so the United States appears centered and natural on the map.
- =#
+=#
 ia_centroid = GeometryOps.centroid(heart_disease_data_county.geometry);
 
+## Create a GeoMakie scene ----
 #= 
-Create a GeoMakie scene
 A Makie `Figure` is the plotting canvas; `GeoAxis` is the spatial axis that 
 understands geographic projections and can draw polygon geometries correctly.
 =#
@@ -184,7 +188,7 @@ ia_ax = GeoAxis(ia_map[1, 1],
     # of the projection and is not distorted by off-center geometry.
     dest="+proj=ortho +lon_0=$(ia_centroid[1]) +lat_0=$(ia_centroid[2])");
 
-# Build a color map based on data_value
+## Build a color map based on data_value ----
 # `vals` contains the CDC age-adjusted mortality rates. Missing values are 
 # replaced with NaN so Makie’s color pipeline can handle them. Then we compute 
 # the min/max to ensure the colorbar matches the actual range of the data.
@@ -192,11 +196,11 @@ ia_vals = coalesce.(heart_disease_data_county.data_value, NaN);
 ia_min_val = minimum(skipmissing(heart_disease_data_county.data_value));
 ia_max_val = maximum(skipmissing(heart_disease_data_county.data_value));
 
-# A reversed Viridis colormap (longer dark-to-light gradient)
+## A reversed Viridis colormap (longer dark-to-light gradient) ----
 # This gives high mortality rates brighter/lighter color tones.
 cmap = cgrad(:inferno, 256, rev=true); # Makie colormap
 
-# Build polygon objects from your geometries
+## Build polygon objects from your geometries ----
 # `poly!` directly plots the vector geometries stored in the `geometry` column.
 # All state polygons are drawn using the orthographic projection defined above.
 poly!(ia_ax, heart_disease_data_county.geometry,
@@ -206,7 +210,7 @@ poly!(ia_ax, heart_disease_data_county.geometry,
     strokecolor=:white
 );
 
-# Add a colorbar below the map
+## Add a colorbar below the map ----
 # The colorbar uses the same colormap and data range. Font settings align with
 # HHS design style (Work Sans). Setting `vertical = false` makes it horizontal.
 Colorbar(
@@ -219,17 +223,17 @@ Colorbar(
     ticklabelfont="Work Sans"
 )
 
-# Save the output image to disk
+## Save the output image to disk ----
 # This writes the entire figure to a PNG file in your output directory.
 save("./output/plots/ia_map.png", ia_map)
 
 ###_____________________________________________________________________________
-# Geographic analysis - heart disease data for the state of Iowa, USA
+# Geographic analysis - AED deployment data for the project ----
 ###_____________________________________________________________________________
 
-# Use the ia_centroid object from before
+## Use the ia_centroid object from before ----
 
-# get counts by location from the aed data
+## get counts by location from the aed data ----
 aed_location_counts = @chain aed_final begin
     @distinct unique_incident_id
     @filter begin
@@ -255,8 +259,9 @@ aed_location_counts = @chain aed_final begin
     @arrange location
 end;
 
+## AED Deployment locations ----
+
 #= 
-AED Deployment locations
 Create a GeoMakie scene
 A Makie `Figure` is the plotting canvas; `GeoAxis` is the spatial axis that 
 understands geographic projections and can draw polygon geometries correctly.
@@ -284,17 +289,17 @@ aed_ax = GeoAxis(aed_map[1, 1],
     # of the projection and is not distorted by off-center geometry.
     dest="+proj=ortho +lon_0=$(ia_centroid[1]) +lat_0=$(ia_centroid[2])");
 
-# Get distinct vector of districts
+## Get distinct vector of districts ----
 districts =
     string.(unique(heart_disease_data_county.region_preparedness)) |> sort;
 
-# number of districts
+## number of districts ----
 num_districts = length(districts);
 
-# get the vector of districts in the raw data
+## get the vector of districts in the raw data ----
 aed_districts = heart_disease_data_county.region_preparedness;
 
-# map each district to an integer as index
+## map each district to an integer as index ----
 district_lookup = Dict(
     "1A" => 1,
     "1C" => 2,
@@ -306,13 +311,13 @@ district_lookup = Dict(
     "7" => 8
 );
 
-# map each district index to a county
+## map each district index to a county ----
 aed_color_index = [district_lookup[string(d)] for d in aed_districts];
 
-# Makie colormap
+## Makie colormap ----
 aed_cmap = ColorBrewer.palette("Spectral", num_districts);
 
-# Build polygon objects from your geometries
+## Build polygon objects from your geometries ----
 # `poly!` directly plots the vector geometries stored in the `geometry` column.
 # All state polygons are drawn using the orthographic projection defined above.
 poly!(aed_ax, heart_disease_data_county.geometry,
@@ -334,18 +339,16 @@ scatter!(
     label="AED Deployment Locations"
 );
 
-# create the swatch for the district colors
+## create the swatch for the district colors ----
 district_swatches = [
     PolyElement(color=aed_cmap[i], strokecolor=:white)
     for i in 1:num_districts
 ];
 
-# district labels for the legend
+## district labels for the legend ----
 district_labels = districts;   # e.g. ["1A", "1C", "2", ..., "7", "8"]
 
-# create a swatch for marker size
-
-# marker size swatch
+## marker size swatch ----
 size_values = unique(aed_location_counts.quantiles) |> sort;
 size_swatches = [
     MarkerElement(marker=:circle,
@@ -359,8 +362,7 @@ size_labels = str_remove_all.(
     sort(unique(aed_location_counts.quantile_labels)), "0"
 );
 
-# combine swatches
-
+## combine swatches ----
 # Add a Legend to the bottom right of the map
 # size legend at the bottom
 legend = Legend(
@@ -381,23 +383,23 @@ legend = Legend(
 );
 
 
-# Save the output image to disk
+## Save the output image to disk ----
 # This writes the entire figure to a PNG file in your output directory.
 save("./output/plots/aed_map.png", aed_map)
 
 ###_____________________________________________________________________________
-# Deployment details
+# Deployment details ----
 ###_____________________________________________________________________________
 
-# summarize deploymnets by year
+## summarize deploymnets by year ----
 aed_deployments_by_year = combine(
     groupby(
         unique(aed_final, :unique_incident_id), :year
     ),
     nrow => :count
-)
+);
 
-# plot the deployments by year
+## plot the deployments by year ----
 aed_deployments_plot = Makie.with_theme(theme_minimal()) do
     barplot(
         aed_deployments_by_year.year,
@@ -419,18 +421,28 @@ aed_deployments_plot = Makie.with_theme(theme_minimal()) do
     )
 end;
 
-# get distinct locations from the aed data
+## get percent change ----
+aed_deployments_by_year_add = combine(
+    sort(aed_deployments_by_year, :year),
+    :year => :year,
+    :count => :count,
+    :count => (x -> x - lag(x)) => :change,
+    :count => (x -> (x - lag(x)) ./ x * 100) => :pct_change
+);
+
+## get distinct locations from the aed data ----
 distinct_locations = unique(
     filter(:location => l -> !ismissing.(l), aed_final).location
 ) |> length;
 
-# get missing locations
+## get missing locations ----
 missing_locations = filter(:location => l -> ismissing.(l), aed_final) |> nrow;
 
 ###_____________________________________________________________________________
-# Demographic analysis
+# Demographic analysis ----
 ###_____________________________________________________________________________
 
+## gender distribution ----
 sex_distribution = @chain aed_final begin
     @count sex
     @mutate sex = coalesce.(

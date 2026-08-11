@@ -1,5 +1,6 @@
 # _____________________________________________________________________________
-# generate_random_id(): creates random identifiers analogous to the R function
+# generate_random_id() ---- 
+# creates random identifiers analogous to the R function 
 # _____________________________________________________________________________
 
 """
@@ -65,7 +66,7 @@ function generate_random_id(n::Integer; seed::Union{Int,Nothing}=12345)
 end;
 
 ###_____________________________________________________________________________
-# xlsx_cell_range_to_df(): read an Excel cell range into a DataFrame
+# xlsx_cell_range_to_df(): read an Excel cell range into a DataFrame ----
 ###_____________________________________________________________________________
 
 """
@@ -182,7 +183,7 @@ function xlsx_cell_range_to_df(path::String, sheet::String, range::String; clean
 end;
 
 ###_____________________________________________________________________________
-# correct_midnight_rollover(): vectorized rollover correction
+# correct_midnight_rollover(): vectorized rollover correction ----
 ###_____________________________________________________________________________
 
 """
@@ -224,7 +225,8 @@ function correct_midnight_rollover(df::DataFrame, time1::Symbol, time2::Symbol)
 end
 
 ###_____________________________________________________________________________
-# time_string_extract(): convert Time values to components and add to target
+# time_string_extract() ----
+# convert Time values to components and add to target
 ###_____________________________________________________________________________
 
 """
@@ -309,7 +311,8 @@ function time_string_extract(df::DataFrame, time::Symbol, target::Symbol)
 end
 
 ###_____________________________________________________________________________
-# make_regex_from_vector(): construct a safe alternation regex from a vector
+# make_regex_from_vector() ----
+# construct a safe alternation regex from a vector
 ###_____________________________________________________________________________
 
 """
@@ -378,7 +381,8 @@ end
 
 
 ###_____________________________________________________________________________
-# safe_occursin(): missing-safe Boolean string matcher
+# safe_occursin() ----
+# missing-safe Boolean string matcher
 ###_____________________________________________________________________________
 
 """
