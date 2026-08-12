@@ -124,7 +124,7 @@ cmap = cgrad(:inferno, 256, rev=true); # Makie colormap
 # `poly!` directly plots the vector geometries stored in the `geometry` column.
 # All state polygons are drawn using the orthographic projection defined above.
 poly!(us_ax, heart_disease_data_state.geometry,
-    color=vals,
+    color=us_vals,
     colormap=cmap,
     strokewidth=0.5,
     strokecolor=:white
@@ -231,6 +231,27 @@ save("./output/plots/ia_map.png", ia_map)
 # Geographic analysis - AED deployment data for the project ----
 ###_____________________________________________________________________________
 
+## get aed deployoments by district ----
+aed_deployments_by_district = @chain aed_final begin
+    @distinct unique_incident_id
+    @mutate district = str_squish.(string.(district))
+    @mutate district = coalesce.(district, "Not Recorded")
+    @count district
+    @mutate percent = n ./ sum(n)
+    @arrange desc(percent)
+end
+
+## caluclate aed deployments by city
+aed_deployments_by_city = @chain aed_final begin
+    @distinct unique_incident_id
+    @mutate location = str_squish.(string.(location))
+    @mutate location = coalesce.(location, "Not Recorded")
+    @count(location, sort=true)
+    @mutate percent = n ./ sum(n)
+    @arrange desc(percent)
+    @filter n .> 46
+end
+
 ## Use the ia_centroid object from before ----
 
 ## get counts by location from the aed data ----
@@ -327,7 +348,7 @@ poly!(aed_ax, heart_disease_data_county.geometry,
     strokecolor=:white,
     label="Preparedness District"
 );
-scatter!(
+GeoMakie.scatter!(
     aed_ax,
     aed_location_counts.longitude,
     aed_location_counts.latitude,
@@ -391,6 +412,19 @@ save("./output/plots/aed_map.png", aed_map)
 # Deployment details ----
 ###_____________________________________________________________________________
 
+## get total deployments ----
+total_deployments = unique(aed_final, :unique_incident_id) |> nrow;
+
+## get total responding agencies ----
+total_responding_agencies = unique(aed_final.agency) |> length;
+
+## get total responding agencies by year ----
+total_responding_agencies_years = @chain aed_final begin
+    @distinct year, agency
+    @count(year)
+    @arrange year
+end;
+
 ## summarize deploymnets by year ----
 aed_deployments_by_year = combine(
     groupby(
@@ -399,29 +433,50 @@ aed_deployments_by_year = combine(
     nrow => :count
 );
 
-## plot the deployments by year ----
-aed_deployments_plot = Makie.with_theme(theme_minimal()) do
-    barplot(
-        aed_deployments_by_year.year,
-        aed_deployments_by_year.count,
-        color=aed_deployments_by_year.count,
-        strokecolor=:transparent,
-        axis=(
-            xticks=(2021:2026, ["2021", "2022", "2023", "2024", "2025", "2026"]),
-            title="AED Deployments by Year",
-            titlealign=:left,
-            titlesize=18,
-            yticklabelsvisible=false,
-            xticklabelsize=16
-        ),
-        label_size=16,
-        bar_labels=:y,
-        flip_labels_at=400,
-        label_formatter=x -> string(Int(round(x)))
-    )
-end;
+### plot the deployments by year ----
+aed_deployments_plot = Figure();
+aed_deployments_plot_axis = Axis(
+    aed_deployments_plot[1, 1],
+    xticks=(2021:2026, ["2021", "2022", "2023", "2024", "2025", "2026"]),
+    title="AED Deployments by Year",
+    titlefont="Work Sans",
+    titlealign=:left,
+    titlesize=18,
+    yticklabelsvisible=false,
+    xticklabelsize=16,
+    xticklabelfont="Work Sans"
+);
 
-## get percent change ----
+### aed deployments bar plot ----
+barplot!(
+    aed_deployments_by_year.year,
+    aed_deployments_by_year.count,
+    color=aed_deployments_by_year.count,
+    strokecolor=:transparent,
+    label_size=16,
+    bar_labels=:y,
+    label_font="Work Sans",
+    flip_labels_at=400,
+    label_formatter=x -> string(Int(round(x)))
+);
+
+### colorbar for the aed deployments bar plot ----
+Colorbar(
+    aed_deployments_plot[1, 2],
+    limits=(
+        minimum(aed_deployments_by_year.count),
+        maximum(aed_deployments_by_year.count)
+    ),
+    colormap=:viridis,
+    vertical=true,
+    labelfont="Work Sans",
+    labelsize=16
+);
+
+### save the aed deployments bar plot ----
+save("./output/plots/aed_deployments_plot.png", aed_deployments_plot);
+
+### get percent change ----
 aed_deployments_by_year_add = combine(
     sort(aed_deployments_by_year, :year),
     :year => :year,
@@ -444,19 +499,13 @@ aed_deployments_by_calltype = sort(
         groupby(
             unique(aed_final, :unique_incident_id), :call_type
         ),
-        nrow => :count), :call_type);
+        nrow => :count,
+        proprow => :percent
+        ), 
+        :call_type
+    );
 
-## deployments by call type with percent ----
-aed_deployments_by_calltype_add = sort(
-    combine(
-        aed_deployments_by_calltype,
-        :call_type => :call_type,
-        :count => :count,
-        :count => (x -> x ./ sum(x) * 100) => :percent
-    )
-)
-
-## get deployments by call type over the years ----
+### get deployments by call type over the years ----
 aed_deployments_calltype_year = sort(
     combine(
         groupby(
@@ -466,54 +515,202 @@ aed_deployments_calltype_year = sort(
     )
 );
 
-## get deployments by call type over the years with percent ----
+### get deployments by call type over the years with percent ----
 aed_deployments_calltype_year_add = combine(
-    groupby(aed_deployments_calltype_year, :year),
+    groupby(
+        filter(
+            :call_type => c -> .!(c .== "Unknown"), aed_deployments_calltype_year
+        ), :year),
     :call_type => :call_type,
     :count => :count,
     :count => (x -> x ./ sum(x)) => :percent
 );
 
-## map call types to integers ----
+### map call types to integers ----
 call_type_dict = Dict(
     "Cardiac Arrest" => 1,
     "Overdose" => 2,
-    "Other Cause" => 3,
-    "Unknown" => 4
+    "Other Cause" => 3
 );
 
-## create the call type index ----
+### create the call type index ----
 call_type_index = [
     call_type_dict[string(d)] for d in aed_deployments_calltype_year_add.call_type
-    ];
+];
 
-## deployments by call type horizontal 100% stacked bars ----
-aed_deployments_call_type_stacked = Makie.with_theme(theme_minimal()) do
-
-    @df aed_deployments_calltype_year_add barplot(
-        :year,
-        :percent,
-        stack = call_type_index,
-        color = call_type_index,
-        strokecolor=:transparent,
-        axis=(
-            xticks=(2021:2026, ["2021", "2022", "2023", "2024", "2025", "2026"]),
-            yticks=(0.0:0.25:1.0, ["0.0", "0.25", "0.5", "0.75", "1.0"]),
-            title="AED Deployments by Year and Call Type",
-            titlealign=:left,
-            titlesize=18,
-            yticklabelsvisible=true,
-            xticklabelsize=16
-        ),
-        label_size=16,
-        bar_labels=nothing,
-        flip_labels_at=0,
-        label_formatter=x -> string(Int(round(x)))
+### assign plot colors ----
+stack_colors = @chain aed_deployments_calltype_year_add begin
+    @mutate stack_color = ifelse(
+        occursin.(r"Cardiac Arrest|Other Cause"i, call_type) .& (count .> 20), :black,
+        ifelse(occursin.(r"Overdose"i, call_type) .& (count .> 20), :white, :transparent)
     )
-
+    @pull stack_color
 end;
 
-## add a legend to the stacked bars ----
+### deployments by call type horizontal 100% stacked bars ----
+
+### set up the figure ----
+aed_deployments_call_type_stacked = Figure();
+aed_deployments_call_type_axis = Axis(
+    aed_deployments_call_type_stacked[1, 1],
+    xticks=(2021:2026, ["2021", "2022", "2023", "2024", "2025", "2026"]),
+    #yticks=(0.0:0.25:1.0, ["0.0", "0.25", "0.5", "0.75", "1.0"]),
+    title="AED Deployments by Year and Call Type",
+    titlefont="Work Sans",
+    titlealign=:left,
+    titlesize=18,
+    yticklabelsvisible=false,
+    xticklabelsvisible=true,
+    xticklabelsize=16
+);
+
+### set a colormap for the stacked bars ----
+stacked_cmap = ColorBrewer.palette("Paired", 3);
+
+### need to supply a label vector for stacked bars to avoid cumulative ----
+stacked_bar_labels = aed_deployments_calltype_year_add.count;
+
+### create the bar plot ----
+barplot!(
+    aed_deployments_calltype_year_add.year,
+    aed_deployments_calltype_year_add.count,
+    stack=call_type_index,
+    color=call_type_index,
+    colormap=stacked_cmap,
+    strokecolor=:white,
+    label_color=stack_colors,
+    label_size=16,
+    label_font="Work Sans",
+    bar_labels=stacked_bar_labels,
+    label_position=:center,
+    label_formatter=x -> string(Int(x)),
+    label=["Cardiac Arrest", "Overdose", "Other Cause"]
+);
+
+### set the theme for the stacked bars ----
+set_theme!(theme_minimal());
+
+### create the swatch for the district colors ----
+stacked_swatch = [
+    PolyElement(color=stacked_cmap[i])
+    for i in 1:length(unique(call_type_index))
+];
+
+### design a legend for the stacked plot ----
+stacked_legend = Legend(
+    aed_deployments_call_type_stacked[2, 1],
+    stacked_swatch,
+    ["Cardiac Arrest", "Overdose", "Other Cause"],
+    "Call Type",
+    titlefont="Work Sans",
+    titlesize=18,
+    labelfont="Work Sans",
+    labelsize=16,
+    autosize=true,
+    tellheight=true,
+    tellwidth=false,
+    orientation=:horizontal
+);
+
+### save the aed deployment by call type stacked bar plot ----
+save("./output/plots/aed_deployments_call_type_stacked.png", aed_deployments_call_type_stacked);
+
+## explore witnessed arrests and bystander cpr ----
+# we can use this to get the conditional probabilities
+
+## first get total cases with non-missing witnessed and bystander cpr data ----
+non_missing_witnessed_bcpr = filter(
+    [:witnessed, :bystander_cpr] => (x, y) -> !ismissing(x) && !ismissing(y),
+    unique(aed_final, :unique_incident_id)
+    ) |> nrow;
+
+## get marginal and joint probabilities and counts 
+witnessed_bystander_cpr = @chain aed_final begin
+    @distinct unique_incident_id
+    @filter begin
+        !ismissing.(witnessed) & !ismissing.(bystander_cpr)
+    end
+    @count(witnessed, bystander_cpr)
+    @pivot_wider(
+        names_from = bystander_cpr,
+        values_from = n
+    )
+    @mutate total = `true` .+ `false`
+    @mutate total =
+        string.(total) .* " (" .* string.(round(total ./ sum(total) * 100; digits=2)) .* "%)"
+    @bind_rows(
+        @chain aed_final begin
+            @distinct unique_incident_id
+            @filter begin
+                !ismissing.(witnessed) & !ismissing.(bystander_cpr)
+            end
+            @summarize begin
+                witnessed = "total"
+                `true` = sum(skipmissing(bystander_cpr))
+                `false` = sum(skipmissing(!bystander_cpr))
+                total = n()
+            end
+            @mutate `true` = string.(`true`) .* " (" .* string.(round(`true` ./ sum(total) * 100; digits=2)) .* "%)"
+            @mutate `false` = string.(`false`) .* " (" .* string.(round(`false` ./ sum(total) * 100; digits=2)) .* "%)"
+        end
+    )
+end;
+
+## export the witnessed_bystander_cpr data to .xlsx ----
+XLSX.writetable(
+    "./output/data/witnessed_bystander_cpr.xlsx",
+    "witnessed_bcpr" => witnessed_bystander_cpr
+)
+
+## get conditional probabilities, conditioning on witnessed ----
+conditional_probabilities_witnessed = @chain aed_final begin
+    @distinct unique_incident_id
+    @filter begin
+        !ismissing.(witnessed) & !ismissing.(bystander_cpr)
+    end
+    @count(witnessed, bystander_cpr)
+    @pivot_wider(
+        names_from = bystander_cpr,
+        values_from = n
+    )
+    @mutate true_bcpr = 
+    string.(`true`) .* " (" .* string.(round(`true` ./ (`true` .+ `false`) * 100; digits=2), "%)")
+    @mutate false_bcpr = 
+    string.(`false`) .* " (" .* string.(round(`false` ./ (`true` .+ `false`) * 100; digits=2)) .* "%)"
+    @select -(`true`, `false`)
+end
+
+## export the conditional_probabilities_witnessed data to .xlsx ----
+XLSX.writetable(
+    "./output/data/conditional_probabilities_witnessed.xlsx",
+    "conditional_witnessed" => conditional_probabilities_witnessed
+)
+
+## get conditional probabilities, conditioning on bystander cpr ----
+conditional_probabilities_bcpr = @chain aed_final begin
+    @distinct unique_incident_id
+    @filter begin
+        !ismissing.(witnessed) & !ismissing.(bystander_cpr)
+    end
+    @count(witnessed, bystander_cpr)
+    @pivot_wider(
+        names_from = bystander_cpr,
+        values_from = n
+    )
+    @mutate true_bcpr = 
+    string.(`true`) .* " (" .* string.(round(`true` ./ sum(`true`) * 100; digits=2), "%)")
+    @mutate false_bcpr = 
+    string.(`false`) .* " (" .* string.(round(`false` ./ sum(`true`) * 100; digits=2)) .* "%)"
+    @select -(`true`, `false`)
+end
+
+## export the conditional_probabilities_witnessed data to .xlsx ----
+XLSX.writetable(
+    "./output/data/conditional_probabilities_bcpr.xlsx",
+    "conditional_bcpr" => conditional_probabilities_bcpr
+)
+
+## get conditional probabilities
 
 ###_____________________________________________________________________________
 # Demographic analysis ----
