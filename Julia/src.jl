@@ -501,9 +501,9 @@ aed_deployments_by_calltype = sort(
         ),
         nrow => :count,
         proprow => :percent
-        ), 
-        :call_type
-    );
+    ),
+    :call_type
+);
 
 ### get deployments by call type over the years ----
 aed_deployments_calltype_year = sort(
@@ -622,7 +622,7 @@ save("./output/plots/aed_deployments_call_type_stacked.png", aed_deployments_cal
 non_missing_witnessed_bcpr = filter(
     [:witnessed, :bystander_cpr] => (x, y) -> !ismissing(x) && !ismissing(y),
     unique(aed_final, :unique_incident_id)
-    ) |> nrow;
+) |> nrow;
 
 ## get marginal and joint probabilities and counts 
 witnessed_bystander_cpr = @chain aed_final begin
@@ -673,10 +673,10 @@ conditional_probabilities_witnessed = @chain aed_final begin
         names_from = bystander_cpr,
         values_from = n
     )
-    @mutate true_bcpr = 
-    string.(`true`) .* " (" .* string.(round(`true` ./ (`true` .+ `false`) * 100; digits=2), "%)")
-    @mutate false_bcpr = 
-    string.(`false`) .* " (" .* string.(round(`false` ./ (`true` .+ `false`) * 100; digits=2)) .* "%)"
+    @mutate true_bcpr =
+        string.(`true`) .* " (" .* string.(round(`true` ./ (`true` .+ `false`) * 100; digits=2), "%)")
+    @mutate false_bcpr =
+        string.(`false`) .* " (" .* string.(round(`false` ./ (`true` .+ `false`) * 100; digits=2)) .* "%)"
     @select -(`true`, `false`)
 end
 
@@ -697,10 +697,10 @@ conditional_probabilities_bcpr = @chain aed_final begin
         names_from = bystander_cpr,
         values_from = n
     )
-    @mutate true_bcpr = 
-    string.(`true`) .* " (" .* string.(round(`true` ./ sum(`true`) * 100; digits=2), "%)")
-    @mutate false_bcpr = 
-    string.(`false`) .* " (" .* string.(round(`false` ./ sum(`true`) * 100; digits=2)) .* "%)"
+    @mutate true_bcpr =
+        string.(`true`) .* " (" .* string.(round(`true` ./ sum(`true`) * 100; digits=2), "%)")
+    @mutate false_bcpr =
+        string.(`false`) .* " (" .* string.(round(`false` ./ sum(`true`) * 100; digits=2)) .* "%)"
     @select -(`true`, `false`)
 end
 
@@ -710,7 +710,106 @@ XLSX.writetable(
     "conditional_bcpr" => conditional_probabilities_bcpr
 )
 
-## get conditional probabilities
+## get aed deployments by agency type ----
+aed_deployments_by_agencytype = sort(
+    combine(
+        groupby(
+            unique(aed_final, :unique_incident_id), :agency_type
+        ),
+        nrow => :count,
+    ), :count, rev=false
+);
+
+### update the categories of agency type due to small counts ----
+aed_deployments_by_agencytype_update =
+    @chain aed_deployments_by_agencytype begin
+        @mutate agency_type = ifelse(count < 6, "Other", agency_type)
+        @group_by agency_type
+        @summarize(
+            agency_type = agency_type,
+            count = sum(count)
+        )
+        @ungroup
+        @distinct agency_type
+        @mutate(
+            percent = count ./ sum(count),
+            cumpercent = cumsum(count) ./ sum(count)
+        )
+    end
+
+### create a pareto chart of cumulative proportions ----
+
+#### data ----
+agency_types = aed_deployments_by_agencytype_update.agency_type;
+agency_type_counts = aed_deployments_by_agencytype_update.count;
+
+#### cumulative percent ----
+agency_type_props_cumulative = aed_deployments_by_agencytype_update.cumpercent;
+
+#### set pareto chart label positions ----
+pareto_label_positions = ifelse(agency_type_counts .< 1000, :end, :center);
+
+#### figure + axis ----
+aed_deployments_by_agencytype_pareto = Figure();
+aed_deployments_by_agencytype_ax = Axis(
+    aed_deployments_by_agencytype_pareto[1, 1],
+    title="AED Deployments by Agency Type",
+    titlefont="Work Sans",
+    titlesize = 18,
+    subtitle="Line: cumulative percent",
+    subtitlefont="Work Sans",
+    subtitlecolor = :orange,
+    subtitlesize = 16,
+    titlealign=:left,
+    xticks=(1:length(agency_types), agency_types),
+    yticks=0:200:1400,
+    yticklabelfont="Work Sans",
+    yticklabelsize = 16,
+    xticklabelsvisible=false,
+    xticklabelfont="Work Sans",
+    xticklabelsize = 16,
+    xticksvisible=false
+);
+
+#### bar layer (frequency) ----
+barplot!(
+    aed_deployments_by_agencytype_ax,
+    agency_type_counts,
+    color=:lightblue,
+    strokecolor=:transparent
+);
+
+#### right-side cumulative percent axis ----
+aed_deployments_by_agencytype_ax2 = Axis(
+    aed_deployments_by_agencytype_pareto[1, 1],
+    yaxisposition=:right,
+    yticks=0:0.20:1,
+    yticklabelfont="Work Sans",
+    yticklabelsize = 16,
+    xticks=(1:length(agency_types), agency_types),
+    xticklabelsvisible=true,
+    xticklabelfont="Work Sans",
+    xticklabelsize = 16,
+    xticksvisible=false,
+    xticklabelrotation=π/4,
+    ytickformat=ys -> [Format.format("{:.0f}%", y * 100) for y in ys]
+);
+
+lines!(
+    aed_deployments_by_agencytype_ax2,
+    agency_type_props_cumulative,
+    color=:orange,
+    linewidth=2
+);
+
+Makie.scatter!(
+    aed_deployments_by_agencytype_ax2,
+    agency_type_props_cumulative,
+    color=:darkorange
+);
+
+#### save the pareto plot for aed deployments by agency type ----
+save("./output/plots/aed_deployments_by_agencytype_pareto.png", aed_deployments_by_agencytype_pareto)
 
 ###_____________________________________________________________________________
 # Demographic analysis ----
@@ -726,3 +825,4 @@ sex_distribution = @chain aed_final begin
         round(n ./ sum(n) * 100; digits=2), "%"
     )
 end
+

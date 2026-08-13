@@ -37,7 +37,8 @@ using Pkg
     "GeometryOps",
     "InteractiveUtils",
     "ColorBrewer"
-    "StatsPlots"
+    "StatsPlots",
+    "Format"
     ]
 ); =#
 
@@ -50,6 +51,7 @@ using DataFrames
 using Dates
 using DotEnv
 using Downloads
+using Format
 using GADM
 using GeoDataFrames
 using GeoMakie

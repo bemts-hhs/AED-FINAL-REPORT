@@ -414,6 +414,14 @@ end
 
     aed_final = @chain aed_final begin
         @relocate(location, after = location_city_event_clean)
+        @mutate expired_scene = coalesce.(expired_scene, false)
+        @mutate expired_in_er = coalesce.(expired_in_er, false)
+        @mutate expired_in_hospital = coalesce.(expired_in_hospital, false)
+        @mutate survival = case_when(
+            expired_scene .| expired_in_er .| expired_in_hospital => "Deceased",
+            .!expired_scene .& .!expired_in_er .& .!expired_in_hospital => "Survived",
+            true => "Unknown"
+        )
         @mutate(
         location = ifelse.(
             ismissing.(location) .&
