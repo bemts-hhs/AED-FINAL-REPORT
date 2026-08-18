@@ -38,7 +38,9 @@ using Pkg
     "InteractiveUtils",
     "ColorBrewer"
     "StatsPlots",
-    "Format"
+    "Format",
+    "Pipe",
+    "DataFramesMeta"
     ]
 ); =#
 
@@ -48,6 +50,7 @@ using CairoMakie
 using ColorBrewer
 using CSV
 using DataFrames
+using DataFramesMeta
 using Dates
 using DotEnv
 using Downloads
@@ -60,6 +63,7 @@ using HTTP
 using Impute
 using InteractiveUtils
 using Makie
+using Pipe
 using PrettyTables
 using Quarto
 using Random

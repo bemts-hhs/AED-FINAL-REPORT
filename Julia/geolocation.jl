@@ -12,8 +12,8 @@ location = DataFrame(
 
 ## improve location DataFrame column names ----
 location = @chain location begin
-    @clean_names
-    @mutate county_fips = string.(county_fips)
+    TidierData.@clean_names
+    TidierData.@mutate county_fips = string.(county_fips)
 end;
 
 ###_____________________________________________________________________________
@@ -69,9 +69,9 @@ rm(temp_zip)
 
 ##  filter geo_df down to Iowa locations ----
 geo_df_iowa = @chain geo_df begin
-    @filter admin1_code == "IA"
-    @filter feature_class == "P"
-    @mutate(name = str_squish.(
+    TidierData.@filter admin1_code == "IA"
+    TidierData.@filter feature_class == "P"
+    TidierData.@mutate(name = str_squish.(
             #= 
             remove the (historical) suffix to the "abandonded" populated places 
             =#
@@ -80,7 +80,7 @@ geo_df_iowa = @chain geo_df begin
         ),
         admin2_code = string.(admin2_code)
     )
-    @mutate admin2_code = lpad.(admin2_code, 3, "0")
+    TidierData.@mutate admin2_code = lpad.(admin2_code, 3, "0")
 end
 
 #= 
@@ -109,7 +109,7 @@ us_counties_names = rename(us_counties_temp, geo_counties_colnames)
 
 ##  handle formatting issues within the code vector ----
 ia_counties = @chain us_counties_names begin
-    @mutate(
+    TidierData.@mutate(
         # everything before the first period
         country_code = str_squish.(
             str_extract.(code, r"^[^\.]+")
@@ -119,11 +119,11 @@ ia_counties = @chain us_counties_names begin
         ),
         county_code = str_extract.(code, r"(?<=\.)\d+$")
     )
-    @mutate name_county = str_squish.(
+    TidierData.@mutate name_county = str_squish.(
         str_remove.(name, r"\scounty"i)
     )
-    @filter country_code == "US"
-    @filter state_code == "IA"
+    TidierData.@filter country_code == "US"
+    TidierData.@filter state_code == "IA"
 end
 
 #= 
@@ -134,36 +134,36 @@ geonames does not use the same codes as Census Bureau
 
 ##  final manipulations of the Iowa data to join to the AED data ----
 iowa_data_final = @chain geo_df_iowa begin
-    @left_join(
+    TidierData.@left_join(
         select(ia_counties, :county_code, :name_county), admin2_code = county_code
     )
-    @mutate(
+    TidierData.@mutate(
         name = str_to_upper(name)
     )
-    @left_join(
+    TidierData.@left_join(
         location, name_county = county
     )
-    @mutate(name = coalesce.(name, ""),
+    TidierData.@mutate(name = coalesce.(name, ""),
         name_county = coalesce.(name_county, "")
     )
-    @mutate(
+    TidierData.@mutate(
         name_name_county = string.(name, " ", name_county)
     )
-    @filter name_name_county .!= "CENTERVILLE Boone"
-    @filter name_name_county .!= "PLEASANT HILL Van Buren"
-    @filter name_name_county .!= "HOLY CROSS Delaware"
-    @filter name_name_county .!= "FOREST CITY Howard"
-    @filter name_name_county .!= "GENEVA Benton"
-    @filter name_name_county .!= "WESTFIELD Poweshiek"
-    @filter name_name_county .!= "TROY Lucas"
-    @filter name_name_county .!= "WASHINGTON Woodbury"
-    @filter name_name_county .!= "WEBSTER Madison"
-    @filter name_name_county .!= "RIVERSIDE Woodbury"
-    @filter name_name_county .!= "WASHINGTON Franklin"
-    @filter name_name_county .!= "VAN Marshall"
-    @select -name_name_county
-    @rename district = region_preparedness
-    @relocate(
+    TidierData.@filter name_name_county .!= "CENTERVILLE Boone"
+    TidierData.@filter name_name_county .!= "PLEASANT HILL Van Buren"
+    TidierData.@filter name_name_county .!= "HOLY CROSS Delaware"
+    TidierData.@filter name_name_county .!= "FOREST CITY Howard"
+    TidierData.@filter name_name_county .!= "GENEVA Benton"
+    TidierData.@filter name_name_county .!= "WESTFIELD Poweshiek"
+    TidierData.@filter name_name_county .!= "TROY Lucas"
+    TidierData.@filter name_name_county .!= "WASHINGTON Woodbury"
+    TidierData.@filter name_name_county .!= "WEBSTER Madison"
+    TidierData.@filter name_name_county .!= "RIVERSIDE Woodbury"
+    TidierData.@filter name_name_county .!= "WASHINGTON Franklin"
+    TidierData.@filter name_name_county .!= "VAN Marshall"
+    TidierData.@select -name_name_county
+    TidierData.@rename district = region_preparedness
+    TidierData.@relocate(
         district, after = name_county
     )
 end
@@ -235,7 +235,7 @@ iowa_data_final_names = names(iowa_data_final);
 
 ##  finish by joining needed features to union this with the larger dataset ----
 missing_location_join = @chain missing_locations begin
-    @left_join(
+    TidierData.@left_join(
         location,
         name_county = county
     )
@@ -290,8 +290,8 @@ county_geo_df = filter(:STATEFP => x -> x .== "19",
 
 ##  gain the needed COUNTYFIPS feature to join the AED and other data ----
 county_geo = @chain county_geo_df begin
-    @mutate COUNTYFIPS = STATEFP .* COUNTYFP
-    @relocate(
+    TidierData.@mutate COUNTYFIPS = STATEFP .* COUNTYFP
+    TidierData.@relocate(
         COUNTYFIPS, after = COUNTYFP
     )
 end

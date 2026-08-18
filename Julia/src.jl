@@ -13,49 +13,49 @@ heart_disease_data_full = CSV.read(IOBuffer(heart_disease_response.body), DataFr
 
 ## base dataset for future work, take out sex and race based adjustments ----
 heart_disease_data = @chain heart_disease_data_full begin
-    @filter begin
+    TidierData.@filter begin
         stratification1 == "Overall" && stratification2 == "Overall"
     end
 end
 
 ## Filter data down to states ----
 heart_disease_data_state = @chain heart_disease_data begin
-    @mutate locationid = lpad.(string.(locationid), 2, "0")
-    @filter begin
+    TidierData.@mutate locationid = lpad.(string.(locationid), 2, "0")
+    TidierData.@filter begin
         geographiclevel == "State" &&
 
         # remove states outside the continental US
             !(locationid ∈ ["02", "11", "15", "60", "66", "69", "72", "78"])
     end
-    @right_join(
+    TidierData.@right_join(
         state_geo, locationid = STATEFP
     )
 end
 
 ## filter data down to county ----
 heart_disease_data_county = @chain heart_disease_data begin
-    @mutate locationid = lpad.(string.(locationid), 3, "0")
-    @filter begin
+    TidierData.@mutate locationid = lpad.(string.(locationid), 3, "0")
+    TidierData.@filter begin
         geographiclevel == "County" &&
 
         # remove states outside the continental US
             locationabbr == "IA"
     end
-    @right_join(
+    TidierData.@right_join(
         county_geo, locationid = COUNTYFIPS
     )
-    @mutate COUNTY_NAME = str_squish.(
+    TidierData.@mutate COUNTY_NAME = str_squish.(
         str_remove(locationdesc, r"\s+county$"i)
     )
-    @left_join(
+    TidierData.@left_join(
         select(location, :county, :region_preparedness), COUNTY_NAME = county
     )
 end
 
 ## Filter data down to national ----
 heart_disease_data_national = @chain heart_disease_data begin
-    @filter geographiclevel == "Nation"
-    @select data_value
+    TidierData.@filter geographiclevel == "Nation"
+    TidierData.@select data_value
 end
 
 ###_____________________________________________________________________________
@@ -233,51 +233,50 @@ save("./output/plots/ia_map.png", ia_map)
 
 ## get aed deployoments by district ----
 aed_deployments_by_district = @chain aed_final begin
-    @distinct unique_incident_id
-    @mutate district = str_squish.(string.(district))
-    @mutate district = coalesce.(district, "Not Recorded")
-    @count district
-    @mutate percent = n ./ sum(n)
-    @arrange desc(percent)
+    TidierData.@distinct unique_incident_id
+    TidierData.@mutate district = str_squish.(string.(district))
+    TidierData.@mutate district = coalesce.(district, "Not Recorded")
+    TidierData.@count district
+    TidierData.@mutate percent = n ./ sum(n)
+    TidierData.@arrange desc(percent)
 end
 
-## caluclate aed deployments by city
+## calculate aed deployments by city
 aed_deployments_by_city = @chain aed_final begin
-    @distinct unique_incident_id
-    @mutate location = str_squish.(string.(location))
-    @mutate location = coalesce.(location, "Not Recorded")
-    @count(location, sort=true)
-    @mutate percent = n ./ sum(n)
-    @arrange desc(percent)
-    @filter n .> 46
+    TidierData.@distinct unique_incident_id
+    TidierData.@mutate location = str_squish.(string.(location))
+    TidierData.@mutate location = coalesce.(location, "Not Recorded")
+    TidierData.@count(location, sort=true)
+    TidierData.@mutate percent = n ./ sum(n)
+    TidierData.@arrange desc(percent)
+    TidierData.@filter n .> 46
 end
-
 ## Use the ia_centroid object from before ----
 
 ## get counts by location from the aed data ----
 aed_location_counts = @chain aed_final begin
-    @distinct unique_incident_id
-    @filter begin
+    TidierData.@distinct unique_incident_id
+    TidierData.@filter begin
         !ismissing(location) &&
             !ismissing(latitude) &&
             !ismissing(longitude)
     end
-    @count(
+    TidierData.@count(
         location, latitude, longitude
     )
-    @mutate quantiles = case_when(
+    TidierData.@mutate quantiles = case_when(
         n <= quantile(n, 0.8) => 10,
         n < quantile(n, 0.9) => 15,
         n < quantile(n, 0.99) => 20,
         true => 25
     )
-    @mutate quantile_labels = case_when(
+    TidierData.@mutate quantile_labels = case_when(
         quantiles .== 10 => "01-06",
         quantiles .== 15 => "06-11",
         quantiles .== 20 => "11-47",
         true => "47+"
     )
-    @arrange location
+    TidierData.@arrange location
 end;
 
 ## AED Deployment locations ----
@@ -420,9 +419,9 @@ total_responding_agencies = unique(aed_final.agency) |> length;
 
 ## get total responding agencies by year ----
 total_responding_agencies_years = @chain aed_final begin
-    @distinct year, agency
-    @count(year)
-    @arrange year
+    TidierData.@distinct year, agency
+    TidierData.@count(year)
+    TidierData.@arrange year
 end;
 
 ## summarize deploymnets by year ----
@@ -540,11 +539,11 @@ call_type_index = [
 
 ### assign plot colors ----
 stack_colors = @chain aed_deployments_calltype_year_add begin
-    @mutate stack_color = ifelse(
+    TidierData.@mutate stack_color = ifelse(
         occursin.(r"Cardiac Arrest|Other Cause"i, call_type) .& (count .> 20), :black,
         ifelse(occursin.(r"Overdose"i, call_type) .& (count .> 20), :white, :transparent)
     )
-    @pull stack_color
+    TidierData.@pull stack_color
 end;
 
 ### deployments by call type horizontal 100% stacked bars ----
@@ -626,32 +625,32 @@ non_missing_witnessed_bcpr = filter(
 
 ## get marginal and joint probabilities and counts 
 witnessed_bystander_cpr = @chain aed_final begin
-    @distinct unique_incident_id
-    @filter begin
+    TidierData.@distinct unique_incident_id
+    TidierData.@filter begin
         !ismissing.(witnessed) & !ismissing.(bystander_cpr)
     end
-    @count(witnessed, bystander_cpr)
-    @pivot_wider(
+    TidierData.@count(witnessed, bystander_cpr)
+    TidierData.@pivot_wider(
         names_from = bystander_cpr,
         values_from = n
     )
-    @mutate total = `true` .+ `false`
-    @mutate total =
+    TidierData.@mutate total = `true` .+ `false`
+    TidierData.@mutate total =
         string.(total) .* " (" .* string.(round(total ./ sum(total) * 100; digits=2)) .* "%)"
-    @bind_rows(
+    TidierData.@bind_rows(
         @chain aed_final begin
-            @distinct unique_incident_id
-            @filter begin
+            TidierData.@distinct unique_incident_id
+            TidierData.@filter begin
                 !ismissing.(witnessed) & !ismissing.(bystander_cpr)
             end
-            @summarize begin
+            TidierData.@summarize begin
                 witnessed = "total"
                 `true` = sum(skipmissing(bystander_cpr))
                 `false` = sum(skipmissing(!bystander_cpr))
                 total = n()
             end
-            @mutate `true` = string.(`true`) .* " (" .* string.(round(`true` ./ sum(total) * 100; digits=2)) .* "%)"
-            @mutate `false` = string.(`false`) .* " (" .* string.(round(`false` ./ sum(total) * 100; digits=2)) .* "%)"
+            TidierData.@mutate `true` = string.(`true`) .* " (" .* string.(round(`true` ./ sum(total) * 100; digits=2)) .* "%)"
+            TidierData.@mutate `false` = string.(`false`) .* " (" .* string.(round(`false` ./ sum(total) * 100; digits=2)) .* "%)"
         end
     )
 end;
@@ -664,21 +663,21 @@ XLSX.writetable(
 
 ## get conditional probabilities, conditioning on witnessed ----
 conditional_probabilities_witnessed = @chain aed_final begin
-    @distinct unique_incident_id
-    @filter begin
+    TidierData.@distinct unique_incident_id
+    TidierData.@filter begin
         !ismissing.(witnessed) & !ismissing.(bystander_cpr)
     end
-    @count(witnessed, bystander_cpr)
-    @pivot_wider(
+    TidierData.@count(witnessed, bystander_cpr)
+    TidierData.@pivot_wider(
         names_from = bystander_cpr,
         values_from = n
     )
-    @mutate true_bcpr =
+    TidierData.@mutate true_bcpr =
         string.(`true`) .* " (" .* string.(round(`true` ./ (`true` .+ `false`) * 100; digits=2), "%)")
-    @mutate false_bcpr =
+    TidierData.@mutate false_bcpr =
         string.(`false`) .* " (" .* string.(round(`false` ./ (`true` .+ `false`) * 100; digits=2)) .* "%)"
-    @select -(`true`, `false`)
-end
+    TidierData.@select -(`true`, `false`)
+end;
 
 ## export the conditional_probabilities_witnessed data to .xlsx ----
 XLSX.writetable(
@@ -688,21 +687,21 @@ XLSX.writetable(
 
 ## get conditional probabilities, conditioning on bystander cpr ----
 conditional_probabilities_bcpr = @chain aed_final begin
-    @distinct unique_incident_id
-    @filter begin
+    TidierData.@distinct unique_incident_id
+    TidierData.@filter begin
         !ismissing.(witnessed) & !ismissing.(bystander_cpr)
     end
-    @count(witnessed, bystander_cpr)
-    @pivot_wider(
+    TidierData.@count(witnessed, bystander_cpr)
+    TidierData.@pivot_wider(
         names_from = bystander_cpr,
         values_from = n
     )
-    @mutate true_bcpr =
+    TidierData.@mutate true_bcpr =
         string.(`true`) .* " (" .* string.(round(`true` ./ sum(`true`) * 100; digits=2), "%)")
-    @mutate false_bcpr =
+    TidierData.@mutate false_bcpr =
         string.(`false`) .* " (" .* string.(round(`false` ./ sum(`true`) * 100; digits=2)) .* "%)"
-    @select -(`true`, `false`)
-end
+    TidierData.@select -(`true`, `false`)
+end;
 
 ## export the conditional_probabilities_witnessed data to .xlsx ----
 XLSX.writetable(
@@ -723,19 +722,19 @@ aed_deployments_by_agencytype = sort(
 ### update the categories of agency type due to small counts ----
 aed_deployments_by_agencytype_update =
     @chain aed_deployments_by_agencytype begin
-        @mutate agency_type = ifelse(count < 6, "Other", agency_type)
-        @group_by agency_type
-        @summarize(
+        TidierData.@mutate agency_type = ifelse(count < 6, "Other", agency_type)
+        TidierData.@group_by agency_type
+        TidierData.@summarize(
             agency_type = agency_type,
             count = sum(count)
         )
-        @ungroup
-        @distinct agency_type
-        @mutate(
+        TidierData.@ungroup
+        TidierData.@distinct agency_type
+        TidierData.@mutate(
             percent = count ./ sum(count),
             cumpercent = cumsum(count) ./ sum(count)
         )
-    end
+    end;
 
 ### create a pareto chart of cumulative proportions ----
 
@@ -746,28 +745,25 @@ agency_type_counts = aed_deployments_by_agencytype_update.count;
 #### cumulative percent ----
 agency_type_props_cumulative = aed_deployments_by_agencytype_update.cumpercent;
 
-#### set pareto chart label positions ----
-pareto_label_positions = ifelse(agency_type_counts .< 1000, :end, :center);
-
 #### figure + axis ----
 aed_deployments_by_agencytype_pareto = Figure();
 aed_deployments_by_agencytype_ax = Axis(
     aed_deployments_by_agencytype_pareto[1, 1],
     title="AED Deployments by Agency Type",
     titlefont="Work Sans",
-    titlesize = 18,
+    titlesize=18,
     subtitle="Line: cumulative percent",
     subtitlefont="Work Sans",
-    subtitlecolor = :orange,
-    subtitlesize = 16,
+    subtitlecolor=:orange,
+    subtitlesize=16,
     titlealign=:left,
     xticks=(1:length(agency_types), agency_types),
     yticks=0:200:1400,
     yticklabelfont="Work Sans",
-    yticklabelsize = 16,
+    yticklabelsize=16,
     xticklabelsvisible=false,
     xticklabelfont="Work Sans",
-    xticklabelsize = 16,
+    xticklabelsize=16,
     xticksvisible=false
 );
 
@@ -785,11 +781,11 @@ aed_deployments_by_agencytype_ax2 = Axis(
     yaxisposition=:right,
     yticks=0:0.20:1,
     yticklabelfont="Work Sans",
-    yticklabelsize = 16,
+    yticklabelsize=16,
     xticks=(1:length(agency_types), agency_types),
     xticklabelsvisible=true,
     xticklabelfont="Work Sans",
-    xticklabelsize = 16,
+    xticklabelsize=16,
     xticksvisible=false,
     xticklabelrotation=π/4,
     ytickformat=ys -> [Format.format("{:.0f}%", y * 100) for y in ys]
@@ -812,17 +808,415 @@ Makie.scatter!(
 save("./output/plots/aed_deployments_by_agencytype_pareto.png", aed_deployments_by_agencytype_pareto)
 
 ###_____________________________________________________________________________
-# Demographic analysis ----
+# Survival analysis ----
+# we will combine demographics and survival to reduce page count and allow more room for the regression analysis
 ###_____________________________________________________________________________
 
-## gender distribution ----
-sex_distribution = @chain aed_final begin
-    @count sex
-    @mutate sex = coalesce.(
-        sex, "Unknown"
+## survival over the years for printing a table
+aed_survival_years_table = @chain aed_final begin
+    unique(:unique_incident_id)
+    groupby([:year, :survival])
+    combine(
+        nrow => :count
     )
-    @mutate percent = string.(
-        round(n ./ sum(n) * 100; digits=2), "%"
-    )
-end
+    unstack(:survival, :count)
+    DataFramesMeta.@transform :Total = :Deceased .+ :Survived
+    DataFramesMeta.@transform :Pct_Survived = :Survived ./ :Total
+    DataFramesMeta.@transform :Pct_Deceased = :Deceased ./ :Total
+    sort(:year)
+end;
 
+## export the survival by year table to .xlsx
+XLSX.writetable("./output/data/aed_survival_years_table.xlsx", "survival_by_year" => aed_survival_years_table)
+
+## survival over the years for the 100% stacked bars
+aed_survival_years = @chain aed_final begin
+    unique(:unique_incident_id)
+    groupby([:year, :survival])
+    combine(
+        nrow => :count
+    )
+    unstack(:survival, :count)
+    DataFramesMeta.@transform :Total = :Deceased .+ :Survived
+    DataFramesMeta.@transform :Pct_Survived = :Survived ./ :Total
+    DataFramesMeta.@transform :Pct_Deceased = :Deceased ./ :Total
+    select(:year, :Pct_Survived, :Pct_Deceased)
+    stack()
+    sort(:year)
+end;
+
+## create a 100% stacked barplot of the survival by year
+
+### figure, axis, and barplot ----
+# object is stored in aed_survival_year_bars 
+aed_survival_year_bars, aed_survival_year_bars_ax, aed_survival_year_bp = barplot(
+    aed_survival_years.year,
+    aed_survival_years.value,
+    stack=repeat(1:2, outer=6),
+    color=repeat(1:2, outer=6),
+    colorrange=(1, 2),
+    colormap=Makie.Categorical(:turbo),
+    bar_labels=aed_survival_years.value,
+    label_position=:center,
+    label_color=:white,
+    label_font="Work Sans",
+    label_size=16,
+    label_formatter=l -> Format.format("{:.2%}", l),
+    direction=:x,
+    label=[
+        label => (; color=i)
+        for (i, label) in enumerate(["Survived", "Deceased"])
+    ],
+    axis=(
+        title="FRAED Deployment Outcome Rates by Year",
+        titlefont="Work Sans",
+        titlesize=18,
+        titlealign=:left,
+        yticks=(2021:2026, ["2021", "2022", "2023", "2024", "2025", "2026"]),
+        yticklabelfont="Work Sans",
+        yticklabelsize=16,
+        xticklabelsvisible=false,
+        xticklabelfont="Work Sans",
+        xticklabelsize=16,
+        xticksvisible=false,
+        yreversed=true
+    )
+);
+
+### create the legend for the 100% stacked barplot ----
+Legend(
+    aed_survival_year_bars[2, 1],
+    aed_survival_year_bars_ax,
+    orientation=:horizontal,
+    labelfont="Work Sans",
+    labelsize=16
+);
+
+### export the 100% stacked barplot ----
+save("./output/plots/aed_survival_year_bars.png", aed_survival_year_bars)
+
+## gender distribution ----
+gender_distribution = sort(
+    combine(
+        groupby(
+            unique(aed_final, :unique_incident_id), [:sex, :survival]
+        ),
+        nrow => :count
+    ), :sex
+);
+
+### deal with missings in the gender distribution ----
+transform!(
+    gender_distribution, :sex => (x -> coalesce.(x, "Unknown")) => :sex
+);
+
+### recode categories in the gender distribution ----
+transform!(
+    gender_distribution, :sex => (x -> ifelse.(x .== "F", "Female", ifelse.(x .== "M", "Male", "Unknown"))) => :sex
+);
+
+### pivot wider the gender distribution ----
+gender_distribution = unstack(gender_distribution, :survival, :count);
+
+### deal with missings after pivoting wider, gender ----
+gender_distribution.Deceased = coalesce.(gender_distribution.Deceased, 0);
+
+### final manipulation of the gender distribution table ----
+gender_distribution_table = combine(
+    gender_distribution,
+    :sex => :Sex,
+    :Survived => :Survived,
+    :Deceased => :Deceased,
+    [:Deceased, :Survived] => ByRow(+) => :Total,
+    [:Survived, :Deceased] => (
+        (x, y) -> (
+            Format.format.("{:.2%}", x ./ (x .+ y))
+        )
+    ) => :Percent_Survived_By_Sex,
+    [:Survived, :Deceased] =>
+        (
+            (x, y) -> (
+                Format.format.("{:.2%}", x ./ (sum(x) .+ sum(y)))
+            )
+        ) => :Percent_Survived_Overall
+);
+
+### write the gender table to Excel for inclusion in the report ----
+XLSX.writetable("./output/data/gender_distribution.xlsx", "aed_gender_distribution" => gender_distribution_table)
+
+## age distribution ----
+age_distribution = @chain aed_final begin
+    unique(:unique_incident_id)
+    DataFramesMeta.@subset .!ismissing.(:age_range)
+    DataFramesMeta.@groupby [:age_range, :survival]
+    combine(
+        nrow => :count
+    )
+    unstack(:survival, :count)
+    DataFramesMeta.@transform :Total = :Deceased .+ :Survived
+    DataFramesMeta.@transform :Pct_Survived = :Survived ./ :Total
+    DataFramesMeta.@transform :Pct_Deceased = :Deceased ./ :Total
+    sort(:Pct_Survived, rev=true)
+end;
+
+### export the age distribution table for further review ----
+XLSX.writetable(
+    "./output/data/age_distribution.xlsx",
+    "age_distribution" => age_distribution
+)
+
+## barplot of the age distribution ----
+### assign figure, axis, and plot all in one call ----
+age_distribution_barplot, age_distribution_ax, age_distribution_bp = barplot(
+    1:length(age_distribution.age_range),
+    age_distribution.Pct_Survived,
+    color=:lightgray,
+    bar_labels=:y,
+    flip_labels_at=0,
+    label_formatter=x -> Format.format("{:.2%}", x),
+    label_color=:darkblue,
+    label_size=16,
+    direction=:x,
+    axis=(
+        title="FRAED Deployment Survival Rates by Age Group",
+        titlefont="Work Sans",
+        titlesize=18,
+        titlealign=:left,
+        xticklabelsize=16,
+        xticklabelfont="Work Sans",
+        xticksvisible=true,
+        xtickformat="{:.0%}",
+        yticks=(1:18, unique(age_distribution.age_range)),
+        yticksvisible=false,
+        yticklabelsvisible=true,
+        yticklabelfont="Work Sans",
+        yticklabelsize=16,
+        yreversed=true
+    )
+);
+
+### save the age group outcomes bar plot ----
+save("./output/plots/age_distribution_barplot.png", age_distribution_barplot)
+
+## survival by call type ----
+aed_survival_by_calltype = @chain aed_final begin
+    unique(:unique_incident_id)
+    DataFramesMeta.@groupby [:call_type, :survival]
+    combine(
+        nrow => :count
+    )
+    unstack(
+        :survival, :count
+    )
+    @transform :total = :Survived .+ :Deceased
+    @transform :percent_survived_by_group = :Survived ./ :total
+    @transform :percent_deceased_by_group = :Deceased ./ :total
+    @transform :line_length = abs.(:percent_survived_by_group .- :percent_deceased_by_group)
+    sort(:percent_survived_by_group, rev=true)
+end;
+
+### get other causes to describe the plot ----
+other_causes = @chain aed_final begin
+    unique(:unique_incident_id)
+    filter(:other_case => x -> .!ismissing.(x), _)
+    DataFramesMeta.@groupby :other_case
+    combine(
+        nrow => :count,
+        proprow => :percent
+    )
+    sort(:percent, rev=true)
+end;
+
+#### save the other causes object for further review ----
+XLSX.writetable(
+    "./output/data/other_causes.xlsx",
+    "other causes" => other_causes
+)
+
+### create a dumbell plot ----
+
+#### figure and axis ----
+aed_survival_dumbbell_plot = Figure();
+aed_survival_dumbbell_ax = Axis(
+    aed_survival_dumbell_plot[1, 1],
+    title="FRAED Deployment Outcome Rates by Call Type",
+    titlefont="Work Sans",
+    titlesize=18,
+    titlealign=:left,
+    xticklabelsize=16,
+    xticklabelfont="Work Sans",
+    xticksvisible=true,
+    xtickformat="{:.0%}",
+    xticks=0.1:0.2:1,
+    yticks=(1:4, unique(aed_survival_by_calltype.call_type)),
+    yticksvisible=false,
+    yticklabelsvisible=true,
+    yticklabelfont="Work Sans",
+    yticklabelsize=16,
+    yreversed=true
+);
+
+#### horizontal line connecting the dots
+for (y, a, b) in zip(
+    1:length(unique(aed_survival_by_calltype.call_type)), 
+    aed_survival_by_calltype.percent_survived_by_group,
+    aed_survival_by_calltype.percent_deceased_by_group
+    )
+
+Makie.lines!(
+    aed_survival_dumbbell_ax,
+    [a, b],
+    [y, y],
+    linewidth = 2,
+    color = :lightgray,
+    transparency=true
+)
+end;
+
+#### Left endpoint: % survived ----
+aed_survival_dumbbell_plot_dot1 = Makie.scatter!(
+    aed_survival_dumbell_ax,
+    aed_survival_by_calltype.percent_survived_by_group,
+    1:length(unique(aed_survival_by_calltype.call_type)),
+    color=:steelblue,
+    markersize=16
+);
+
+#### Right endpoint: % deceased ----
+aed_survival_dumbbell_plot_dot2 = Makie.scatter!(
+    aed_survival_dumbbell_ax,
+    aed_survival_by_calltype.percent_deceased_by_group,
+    1:length(unique(aed_survival_by_calltype.call_type)),
+    color=:darkorange,
+    markersize=16
+);
+
+#### add a legend ----
+Legend(
+    aed_survival_dumbbell_plot[2,1],
+    [aed_survival_dumbbell_plot_dot1, aed_survival_dumbbell_plot_dot2],
+    ["Survived", "Deceased"],
+    tellheight=true,
+    tellwidth=false,
+    orientation=:horizontal,
+    labelsize=16,
+    labelfont="Work Sans"
+)
+
+#### save the dumbbell plot ----
+save(
+    "./output/plots/aed_survival_dumbbell_plot.png",
+    aed_survival_dumbbell_plot
+)
+
+## examine survival rates by urbanicity
+aed_deployments_by_urbanicity = @chain aed_final begin
+    DataFramesMeta.@distinct :unique_incident_id
+    DataFramesMeta.@groupby [:urbanicity, :survival]
+    combine(
+        nrow => :count,
+    )
+    unstack(
+        :survival, :count
+    )
+    @transform :total = :Survived .+ :Deceased
+    @transform :percent_survived = :Survived ./ :total
+    @transform :percent_deceased = :Deceased ./ :total
+    DataFramesMeta.@transform :label_survived_count = Format.format.(:Deceased, commas=true)
+    DataFramesMeta.@transform :label_deceased_count = Format.format.(:Survived, commas=true)
+    DataFramesMeta.@transform :label_percent_survived = Format.format.("{:.2%}", :percent_survived)
+    DataFramesMeta.@transform :label_percent_deceased = Format.format.("{:.2%}", :percent_deceased)
+    DataFramesMeta.@transform :label_survived = 
+    :label_survived_count .* " (" .* :label_percent_survived .* ")"
+    DataFramesMeta.@transform :label_deceased = 
+    :label_deceased_count .* " (" .* :label_percent_deceased .* ")"
+    DataFramesMeta.@transform :urbanicity = ifelse.(ismissing.(:urbanicity), "Not Known", :urbanicity)
+    sort(:urbanicity)
+end;
+
+### develop a heatmap of the relationship between location and survival ----
+
+#### extract vectors of data needed for the heatmap ----
+# survival proportions and labels
+urbanicity_survival_props = aed_deployments_by_urbanicity.percent_survived;
+urbanicity_survival_labels = aed_deployments_by_urbanicity.label_survived;
+
+# mortality proportions and labels
+urbanicity_mortality_props = aed_deployments_by_urbanicity.percent_deceased;
+urbanicity_mortality_labels = aed_deployments_by_urbanicity.label_deceased;
+
+# build the matrix for the heatmap
+heatmap_urbanicity = aed_deployments_by_urbanicity.urbanicity;
+
+# data for the heatmap
+urbanicity_heatmap_matrix = Matrix(aed_deployments_by_urbanicity[:,5:6]);
+
+# vectorize the heatmap labels into one
+urbanicity_heatmap_labels = [urbanicity_survival_labels urbanicity_mortality_labels] |> vec;
+
+# build the positions for the labels
+urbanicity_heatmap_label_positions = [(x, y) for y in 1:2 for x in 1:4];
+
+#### figure and axis ----
+aed_survival_heatmap = Figure();
+aed_survival_heatmap_ax = Axis(
+    aed_survival_heatmap[1, 1],
+    title="FRAED Deployment Outcomes by Urbanicity",
+    titlefont="Work Sans",
+    titlesize=18,
+    titlealign=:left,
+    subtitle="Cells colored by proportions on a scale from [0,1]",
+    subtitlefont="Work Sans",
+    subtitlesize = 16,
+    subtitlecolor = :orange,
+    xticklabelsize=16,
+    xticklabelfont="Work Sans",
+    xticklabelrotation=π/6,
+    xticksvisible=false,
+    xticklabelsvisible=true,
+    xticks=(1:4, heatmap_urbanicity),
+    yticks=(1:2, ["Survived", "Deceased"]),
+    yticksvisible=false,
+    yticklabelsvisible=true,
+    yticklabelfont="Work Sans",
+    yticklabelsize=16
+);
+
+#### render the heatmap ----
+Makie.heatmap!(aed_survival_heatmap_ax, urbanicity_heatmap_matrix, colormap = Reverse(:viridis));
+
+#### overlay text labels ----
+
+#= 
+
+opting not to use this as it is redundant
+allow readers to browse the table, and discuss the proportions within the text of the report
+
+=#
+
+# for (pos, lbl) in zip(urbanicity_heatmap_label_positions, urbanicity_heatmap_labels)
+# text!(
+#     aed_survival_heatmap_ax,
+#     lbl,
+#     position = pos,
+#     align=(:center, :center), 
+#     color=:white, 
+#     fontsize=14, 
+#     font="Work Sans"
+# )
+# end;
+
+#### add a color bar ----
+Colorbar(
+    aed_survival_heatmap[:, end + 1],
+    colormap = Reverse(:viridis),
+    ticklabelfont="Work Sans",
+    ticklabelsize=16,
+    tickformat="{:.0%}"
+)
+
+#### save the heatmap ----
+save(
+    "./output/plots/aed_survival_urbanicity_heatmap.png",
+    aed_survival_heatmap
+)
