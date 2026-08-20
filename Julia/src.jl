@@ -1038,7 +1038,7 @@ XLSX.writetable(
 #### figure and axis ----
 aed_survival_dumbbell_plot = Figure();
 aed_survival_dumbbell_ax = Axis(
-    aed_survival_dumbell_plot[1, 1],
+    aed_survival_dumbbell_plot[1, 1],
     title="FRAED Deployment Outcome Rates by Call Type",
     titlefont="Work Sans",
     titlesize=18,
@@ -1058,24 +1058,24 @@ aed_survival_dumbbell_ax = Axis(
 
 #### horizontal line connecting the dots
 for (y, a, b) in zip(
-    1:length(unique(aed_survival_by_calltype.call_type)), 
+    1:length(unique(aed_survival_by_calltype.call_type)),
     aed_survival_by_calltype.percent_survived_by_group,
     aed_survival_by_calltype.percent_deceased_by_group
-    )
-
-Makie.lines!(
-    aed_survival_dumbbell_ax,
-    [a, b],
-    [y, y],
-    linewidth = 2,
-    color = :lightgray,
-    transparency=true
 )
+
+    Makie.lines!(
+        aed_survival_dumbbell_ax,
+        [a, b],
+        [y, y],
+        linewidth=2,
+        color=:lightgray,
+        transparency=true
+    )
 end;
 
 #### Left endpoint: % survived ----
 aed_survival_dumbbell_plot_dot1 = Makie.scatter!(
-    aed_survival_dumbell_ax,
+    aed_survival_dumbbell_ax,
     aed_survival_by_calltype.percent_survived_by_group,
     1:length(unique(aed_survival_by_calltype.call_type)),
     color=:steelblue,
@@ -1093,7 +1093,7 @@ aed_survival_dumbbell_plot_dot2 = Makie.scatter!(
 
 #### add a legend ----
 Legend(
-    aed_survival_dumbbell_plot[2,1],
+    aed_survival_dumbbell_plot[2, 1],
     [aed_survival_dumbbell_plot_dot1, aed_survival_dumbbell_plot_dot2],
     ["Survived", "Deceased"],
     tellheight=true,
@@ -1122,101 +1122,110 @@ aed_deployments_by_urbanicity = @chain aed_final begin
     @transform :total = :Survived .+ :Deceased
     @transform :percent_survived = :Survived ./ :total
     @transform :percent_deceased = :Deceased ./ :total
-    DataFramesMeta.@transform :label_survived_count = Format.format.(:Deceased, commas=true)
-    DataFramesMeta.@transform :label_deceased_count = Format.format.(:Survived, commas=true)
+    DataFramesMeta.@transform :label_survived_count = Format.format.(:Survived, commas=true)
+    DataFramesMeta.@transform :label_deceased_count = Format.format.(:Deceased, commas=true)
     DataFramesMeta.@transform :label_percent_survived = Format.format.("{:.2%}", :percent_survived)
     DataFramesMeta.@transform :label_percent_deceased = Format.format.("{:.2%}", :percent_deceased)
-    DataFramesMeta.@transform :label_survived = 
-    :label_survived_count .* " (" .* :label_percent_survived .* ")"
-    DataFramesMeta.@transform :label_deceased = 
-    :label_deceased_count .* " (" .* :label_percent_deceased .* ")"
+    DataFramesMeta.@transform :label_survived =
+        :label_survived_count .* " (" .* :label_percent_survived .* ")"
+    DataFramesMeta.@transform :label_deceased =
+        :label_deceased_count .* " (" .* :label_percent_deceased .* ")"
     DataFramesMeta.@transform :urbanicity = ifelse.(ismissing.(:urbanicity), "Not Known", :urbanicity)
     sort(:urbanicity)
 end;
 
-### develop a heatmap of the relationship between location and survival ----
+### lollipop plot of the relationship between location and survival ----
 
-#### extract vectors of data needed for the heatmap ----
-# survival proportions and labels
-urbanicity_survival_props = aed_deployments_by_urbanicity.percent_survived;
-urbanicity_survival_labels = aed_deployments_by_urbanicity.label_survived;
-
-# mortality proportions and labels
-urbanicity_mortality_props = aed_deployments_by_urbanicity.percent_deceased;
-urbanicity_mortality_labels = aed_deployments_by_urbanicity.label_deceased;
-
-# build the matrix for the heatmap
-heatmap_urbanicity = aed_deployments_by_urbanicity.urbanicity;
-
-# data for the heatmap
-urbanicity_heatmap_matrix = Matrix(aed_deployments_by_urbanicity[:,5:6]);
-
-# vectorize the heatmap labels into one
-urbanicity_heatmap_labels = [urbanicity_survival_labels urbanicity_mortality_labels] |> vec;
-
-# build the positions for the labels
-urbanicity_heatmap_label_positions = [(x, y) for y in 1:2 for x in 1:4];
+#### data for the lollipop
+urbanicity_levels = aed_deployments_by_urbanicity.urbanicity;
+urbanicity_pct_surv = aed_deployments_by_urbanicity.percent_survived;
+urbanicity_pct_death = aed_deployments_by_urbanicity.percent_deceased;
+urbanicity_ypos = 1:length(urbanicity_levels);
 
 #### figure and axis ----
-aed_survival_heatmap = Figure();
-aed_survival_heatmap_ax = Axis(
-    aed_survival_heatmap[1, 1],
+aed_survival_lollipop = Figure();
+aed_survival_lollipop_ax = Axis(
+    aed_survival_lollipop[1, 1],
     title="FRAED Deployment Outcomes by Urbanicity",
     titlefont="Work Sans",
     titlesize=18,
     titlealign=:left,
-    subtitle="Cells colored by proportions on a scale from [0,1]",
+    subtitle="Center of each square indicates the plotted proportion",
     subtitlefont="Work Sans",
-    subtitlesize = 16,
-    subtitlecolor = :orange,
+    subtitlesize=16,
+    subtitlecolor=:orange,
     xticklabelsize=16,
     xticklabelfont="Work Sans",
-    xticklabelrotation=π/6,
     xticksvisible=false,
     xticklabelsvisible=true,
-    xticks=(1:4, heatmap_urbanicity),
-    yticks=(1:2, ["Survived", "Deceased"]),
+    xticks=0:0.2:1,
+    xtickformat="{:.0%}",
+    yticks=(urbanicity_ypos, urbanicity_levels),
     yticksvisible=false,
     yticklabelsvisible=true,
     yticklabelfont="Work Sans",
-    yticklabelsize=16
+    yticklabelsize=16,
+    ygridvisible=false,
+    yminorgridvisible=false,
+    xgridvisible=true,
+    xminorgridvisible=false
 );
 
-#### render the heatmap ----
-Makie.heatmap!(aed_survival_heatmap_ax, urbanicity_heatmap_matrix, colormap = Reverse(:viridis));
+#### Survived lollipops (steelblue) ----
+for (y, p) in zip(urbanicity_ypos, urbanicity_pct_surv)
+    # stem
+    Makie.lines!(aed_survival_lollipop_ax, [0, p], [y + 0.15, y + 0.15], color=:steelblue, linewidth=2)
 
-#### overlay text labels ----
+    # circle
+    Makie.scatter!(
+        aed_survival_lollipop_ax,
+        [p], [y + 0.15],
+        marker=:rect,
+        markersize=16,
+        color=:steelblue,
+        strokecolor=:blue,
+        strokewidth=2
+    )
+end;
 
-#= 
+#### Deceased lollipops (red) ----
+for (y, p) in zip(urbanicity_ypos, urbanicity_pct_death)
+    # stem
+    lines!(aed_survival_lollipop_ax, [0, p], [y - 0.15, y - 0.15], color=:red, linewidth=2)
+    # circle
+    Makie.scatter!(
+        aed_survival_lollipop_ax,
+        [p], [y - 0.15],
+        marker=:rect,
+        markersize=16,
+        color=:pink,
+        strokecolor=:red,
+        strokewidth=2
+    )
+end;
 
-opting not to use this as it is redundant
-allow readers to browse the table, and discuss the proportions within the text of the report
+#### Legend ----
 
-=#
+# survival element
+urbanicity_surv_elem = MarkerElement(color=:steelblue, marker=:rect, markersize=16, strokecolor=:steelblue);
 
-# for (pos, lbl) in zip(urbanicity_heatmap_label_positions, urbanicity_heatmap_labels)
-# text!(
-#     aed_survival_heatmap_ax,
-#     lbl,
-#     position = pos,
-#     align=(:center, :center), 
-#     color=:white, 
-#     fontsize=14, 
-#     font="Work Sans"
-# )
-# end;
+# deceased element
+urbanicity_death_elem = MarkerElement(color=:pink, marker=:rect, markersize=16, strokecolor=:red);
 
-#### add a color bar ----
-Colorbar(
-    aed_survival_heatmap[:, end + 1],
-    colormap = Reverse(:viridis),
-    ticklabelfont="Work Sans",
-    ticklabelsize=16,
-    tickformat="{:.0%}"
-)
+# legend
+Legend(aed_survival_lollipop[2, 1],
+    [urbanicity_surv_elem, urbanicity_death_elem],
+    ["Survived", "Deceased"],
+    orientation=:horizontal,
+    tellheight=true,
+    tellwidth=false,
+    labelsize=16,
+    labelfont="Work Sans",
+    framevisible=false
+);
 
-#### save the heatmap ----
+#### save the lollipop plot ----
 save(
-    "./output/plots/aed_survival_urbanicity_heatmap.png",
-    aed_survival_heatmap
+    "./output/plots/aed_survival_urbanicity_lollipop.png",
+    aed_survival_lollipop
 )

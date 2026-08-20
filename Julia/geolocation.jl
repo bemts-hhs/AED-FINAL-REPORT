@@ -1,6 +1,6 @@
 ###_____________________________________________________________________________
 # Only need to run this script if setup.jl does not pull in processed data
-# Check the .\output\data\ directory and the global environment, first
+# Check the .\output\data\ directory and the global environment, first.
 ###_____________________________________________________________________________
 # Read in location data ----
 ###_____________________________________________________________________________
