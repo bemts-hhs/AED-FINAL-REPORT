@@ -85,3 +85,6 @@ rsconnect/
 
 # Output folder
 /output
+
+# A specific reporting file not needed for the report
+helmsley_fy_report.jl
