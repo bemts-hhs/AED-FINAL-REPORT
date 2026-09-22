@@ -138,7 +138,7 @@ Colorbar(
     limits=(us_min_val, us_max_val),
     colormap=cmap,
     vertical=false,
-    label="Age-adjusted rate per 100k population",
+    label="Adjusted rate per 100k population",
     labelfont="Work Sans",
     ticklabelfont="Work Sans"
 )
@@ -218,7 +218,7 @@ Colorbar(
     limits=(ia_min_val, ia_max_val),
     colormap=cmap,
     vertical=false,
-    label="Age-adjusted rate per 100k population",
+    label="Adjusted rate per 100k population",
     labelfont="Work Sans",
     ticklabelfont="Work Sans"
 )
@@ -956,8 +956,12 @@ age_distribution = @chain aed_final begin
     DataFramesMeta.@transform :Total = :Deceased .+ :Survived
     DataFramesMeta.@transform :Pct_Survived = :Survived ./ :Total
     DataFramesMeta.@transform :Pct_Deceased = :Deceased ./ :Total
+    DataFramesMeta.@transform :Survived_label = string.(round.(:Pct_Survived .* 100; digits=2)) .* "%" .* " -" .*  string.(:Total) .* "-" 
     sort(:Pct_Survived, rev=true)
 end;
+
+### get the pct survived labels for the barplot ----
+pct_survived_labels = age_distribution.Survived_label;
 
 ### export the age distribution table for further review ----
 XLSX.writetable(
@@ -971,15 +975,19 @@ age_distribution_barplot, age_distribution_ax, age_distribution_bp = barplot(
     1:length(age_distribution.age_range),
     age_distribution.Pct_Survived,
     color=:lightgray,
-    bar_labels=:y,
+    bar_labels=pct_survived_labels,
     flip_labels_at=0,
-    label_formatter=x -> Format.format("{:.2%}", x),
+    #label_formatter=x -> Format.format("{:.2%}", x),
     label_color=:darkblue,
     label_size=16,
     direction=:x,
     axis=(
         title="FRAED Deployment Survival Rates by Age Group",
+        subtitle="Label: % survived -total cases-",
         titlefont="Work Sans",
+        subtitlefont="Work Sans",
+        subtitlecolor=:darkblue,
+        subtitlesize=16,
         titlesize=18,
         titlealign=:left,
         xticklabelsize=16,
@@ -991,7 +999,9 @@ age_distribution_barplot, age_distribution_ax, age_distribution_bp = barplot(
         yticklabelsvisible=true,
         yticklabelfont="Work Sans",
         yticklabelsize=16,
-        yreversed=true
+        yreversed=true,
+        xgridvisible=false,
+        ygridvisible=false
     )
 );
 
